@@ -30,7 +30,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 pt-8 border-t border-white/10 text-center text-sm text-white/50">
-          © 2025 VAA Hotel. All rights reserved.
+          © 2026 VAA Hotel. All rights reserved.
         </div>
       </div>
     </footer>

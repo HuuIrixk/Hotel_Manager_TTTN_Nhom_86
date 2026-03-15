@@ -89,8 +89,8 @@ export default function Contact() {
           >
             <div className="text-4xl mb-3"><MailIcon className="w-10 h-10 text-cyan-400 mx-auto" /></div>
             <h3 className="text-cyan-400 font-semibold text-lg mb-2">Email</h3>
-            <a href="mailto:info@newworldhotel.vn" className="hover:underline">
-              info@newworldhotel.vn
+            <a href="mailto:nhom86@vaa.com" className="hover:underline">
+              nhom86@vaa.com
             </a>
             <p className="text-gray-400 text-xs mt-1">Phản hồi trong vòng 24h</p>
           </div>

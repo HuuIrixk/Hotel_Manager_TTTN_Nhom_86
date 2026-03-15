@@ -227,11 +227,13 @@ header {
 }
 
 /* Nav hover gạch dưới */
-nav a {
+nav a,
+nav button {
   position: relative;
 }
 
-nav a::after {
+nav a::after,
+nav button::after {
   content: '';
   position: absolute;
   left: 0;
@@ -242,7 +244,8 @@ nav a::after {
   transition: width 0.3s ease-in-out;
 }
 
-nav a:hover::after {
+nav a:hover::after,
+nav button:hover::after {
   width: 100%;
 }
 

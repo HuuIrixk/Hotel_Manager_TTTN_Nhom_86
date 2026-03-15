@@ -68,7 +68,7 @@ export default function Header() {
           </Link>
           <button
             type="button"
-            className="transition inline-flex items-center gap-1 cursor-default"
+            className="hover:text-cyan-400 transition inline-flex items-center gap-1 cursor-default"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
