@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const { env } = require('./config/env.js');
 const { health } = require('./routes/health.js');
+const { ensureRoomSchema } = require('./models/room.model');
 
 const roomRoutes = require('./routes/room.routes.js');
 const bookingRoutes = require("./routes/booking.routes");
@@ -38,6 +39,16 @@ app.use("/api/admin/kb", knowledgeRoutes);
 
 // TODO: modules/rooms, modules/bookings, modules/payments (team tự cài đặt)
 
-app.listen(env.port, () => {
-  console.log(`[backend] running on http://localhost:${env.port}`);
-});
+async function bootstrap() {
+  try {
+    await ensureRoomSchema();
+    app.listen(env.port, () => {
+      console.log(`[backend] running on http://localhost:${env.port}`);
+    });
+  } catch (error) {
+    console.error('Failed to initialize admin backend:', error);
+    process.exit(1);
+  }
+}
+
+bootstrap();

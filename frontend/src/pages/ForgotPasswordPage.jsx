@@ -20,11 +20,7 @@ export default function ForgotPasswordPage() {
       setLoading(true)
       setError('')
       const res = await forgotPassword(email)
-      // Backend trả về resetUrl có chứa token, ta lấy token từ đó hoặc nếu backend trả về token trực tiếp thì dùng luôn.
-      // Hiện tại backend trả về: { message, resetUrl }
-      // resetUrl dạng: http://localhost:3000/reset-password?token=...
-      // Ta cần parse token từ resetUrl để truyền sang trang OTP (demo flow)
-
+      
       const url = new URL(res.resetUrl)
       const token = url.searchParams.get('token')
 

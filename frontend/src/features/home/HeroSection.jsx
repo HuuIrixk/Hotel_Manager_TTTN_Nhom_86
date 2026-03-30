@@ -2,19 +2,19 @@ import { useState, useEffect } from 'react'
 
 const SLIDES = [
   {
-    src: 'https://images.unsplash.com/photo-1566073771259-6a8506099945',
+    src: '/images/VaaHotel.jpg',
     alt: 'VAA Hotel Facade',
     title: 'VAA Hotel',
     subtitle: 'Khách sạn 5 sao tại trung tâm Sài Gòn',
   },
   {
-    src: 'https://images.unsplash.com/photo-1615460549969-36fa19521a4f',
+    src: '/images/HotelLobby.jpg',
     alt: 'Hotel Lobby',
     title: 'Không Gian Sang Trọng',
     subtitle: 'Thiết kế hiện đại kết hợp nét đẹp truyền thống',
   },
   {
-    src: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461',
+    src: 'images/PhongSuite.jpg',
     alt: 'Presidential Suite',
     title: 'Phòng Suite Đẳng Cấp',
     subtitle: 'Trải nghiệm nghỉ dưỡng tuyệt vời nhất',

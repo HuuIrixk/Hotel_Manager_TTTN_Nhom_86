@@ -43,6 +43,10 @@ export default function BookingResultPage() {
         return 'Lỗi hệ thống thanh toán, vui lòng thử lại sau.';
       case 'DirectPaymentSuccess':
         return 'Đã ghi nhận thanh toán trực tiếp tại khách sạn.';
+      case 'DirectBookingPending':
+        return 'Đơn đặt phòng đã được tạo ở trạng thái chờ. Vui lòng thanh toán trực tiếp tại khách sạn.';
+      case 'RoomUnavailable':
+        return 'Phòng không còn trống khi thanh toán hoàn tất. Vui lòng chọn phòng khác.';
       default:
         return messageCode || 'Không rõ trạng thái thanh toán.';
     }
@@ -114,7 +118,7 @@ export default function BookingResultPage() {
             }`}
           >
             <p className="text-lg font-semibold mb-1">
-              {isSuccess ? 'Thanh toán thành công' : 'Thanh toán không thành công'}
+              {isSuccess ? 'Xử lý thành công' : 'Thanh toán không thành công'}
             </p>
             <p className="text-sm text-gray-100">{readableMessage}</p>
           </div>

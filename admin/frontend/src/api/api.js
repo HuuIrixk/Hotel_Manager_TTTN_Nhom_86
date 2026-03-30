@@ -1,4 +1,3 @@
-// api helper - sử dụng axios. Thực tế cần backend để proxy OpenAI key / DB.
 // Đây chỉ là wrapper cơ bản để gọi backend khi có.
 import axios from "axios";
 

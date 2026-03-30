@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 
 const {
+  validateBooking,
   createBooking,
   getMyBookings,
   cancelBooking,
@@ -11,6 +12,9 @@ const authMiddleware = require('../middleware/authMiddleware')
 
 // require auth for all booking routes
 router.use(authMiddleware)
+
+// create booking
+router.post('/validate', validateBooking)
 
 // create booking
 router.post('/', createBooking)

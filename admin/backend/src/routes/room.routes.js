@@ -35,7 +35,7 @@ router.post(
   '/',
   auth,
   allow('admin'),
-  upload.single('image'),               // nhận field 'image' khi create (sau muốn làm thêm)
+  upload.single('image'),               // nhận field 'image' khi create 
   RoomController.create
 );
 

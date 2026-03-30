@@ -1,7 +1,12 @@
 import api from './apiClient'
 
-export async function createBooking({ room_id, check_in, check_out }) {
-  const res = await api.post('/bookings', { room_id, check_in, check_out })
+export async function validateBooking(payload) {
+  const res = await api.post('/bookings/validate', payload)
+  return res.data
+}
+
+export async function createBooking(payload) {
+  const res = await api.post('/bookings', payload)
   return res.data
 }
 

@@ -37,6 +37,12 @@ const Room = sequelize.define('Room', {
     allowNull: true,
   },
 
+  amenities: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: [],
+  },
+
 }, {
   tableName: 'rooms',
   timestamps: false,

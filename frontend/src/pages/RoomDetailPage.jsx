@@ -6,6 +6,23 @@ import Header from '@/layouts/Header'
 import Footer from '@/layouts/Footer'
 import { getRoomDetails } from '@/api/roomApi'
 
+function normalizeAmenities(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean)
+    } catch {
+      return trimmed.split(',').map((item) => item.trim()).filter(Boolean)
+    }
+  }
+  return []
+}
+
 export default function RoomDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -52,7 +69,7 @@ export default function RoomDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#050816] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center">
         <p>Đang tải dữ liệu phòng...</p>
       </div>
     )
@@ -60,7 +77,7 @@ export default function RoomDetailPage() {
 
   if (error || !room) {
     return (
-      <div className="min-h-screen bg-[#050816] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center">
         <p>{error || 'Không tìm thấy phòng'}</p>
       </div>
     )
@@ -76,14 +93,16 @@ export default function RoomDetailPage() {
     ? `${API_ORIGIN}${room.image}`
     : null
 
+  const roomAmenities = normalizeAmenities(room.amenities)
+
   return (
-    <div className="min-h-screen bg-[#050816] text-white">
+    <div className="min-h-screen bg-white text-slate-900">
       <Header />
       <main className="pt-24 pb-16 px-4 max-w-6xl mx-auto">
         <section className="grid md:grid-cols-2 gap-10 items-start">
           {/* Cột ảnh */}
           <div data-aos="fade-right" className="space-y-4">
-            <div className="overflow-hidden rounded-3xl shadow-[0_0_40px_rgba(34,211,238,0.25)] w-full h-[320px] md:h-[380px] bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+            <div className="overflow-hidden rounded-3xl shadow-[0_18px_45px_rgba(15,23,42,0.16)] border border-slate-200 w-full h-[320px] md:h-[380px] bg-slate-100 flex items-center justify-center">
               {roomImg ? (
                 <img
                   src={roomImg}
@@ -104,16 +123,16 @@ export default function RoomDetailPage() {
               Phòng {room.room_number || room.room_id}
             </h1>
 
-            <p className="text-gray-300">
+            <p className="text-slate-700 text-lg">
               Loại phòng: {room.type || 'Chưa cập nhật'}
             </p>
-            <p className="text-gray-300">
+            <p className="text-slate-700 text-lg">
               Sức chứa: {room.capacity || '?'} người
             </p>
-            <p className="text-gray-300">
+            <p className="text-slate-700 text-lg">
               Giá: {Number(room.price).toLocaleString('vi-VN') || 'N/A'} đ / đêm
             </p>
-            <p className="text-gray-300">
+            <p className="text-slate-700 text-lg">
               Trạng thái{' '}
               <span
                 className={
@@ -126,9 +145,25 @@ export default function RoomDetailPage() {
               </span>
             </p>
 
-            <p className="mt-4 text-gray-200 leading-relaxed">
+            <p className="mt-4 text-slate-600 leading-relaxed text-lg">
               {room.description || 'Chưa có mô tả cho phòng này.'}
             </p>
+
+            {roomAmenities.length > 0 && (
+              <div className="mt-2 space-y-2">
+                <p className="text-slate-800 font-semibold text-lg">Tiện nghi</p>
+                <div className="flex flex-wrap gap-2">
+                  {roomAmenities.map((amenity) => (
+                    <span
+                      key={amenity}
+                      className="px-3 py-1 rounded-full text-sm bg-cyan-50 border border-cyan-200 text-cyan-700"
+                    >
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {room.status === 'available' && (
               <button

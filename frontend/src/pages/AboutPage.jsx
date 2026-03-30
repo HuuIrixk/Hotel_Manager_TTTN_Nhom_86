@@ -17,7 +17,7 @@ export default function AboutPage() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-[url('https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center text-white">
+    <div className="relative min-h-screen bg-[url('frontend/public/images/gioi-thieu.jpg')] bg-cover bg-center text-white">
       {/* Overlay đen mờ để nổi bật chữ */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
 
@@ -45,7 +45,7 @@ export default function AboutPage() {
       <section className="relative z-10 container mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
         <div data-aos="fade-right">
           <img
-            src="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1400&q=80"
+            src="./images/gioi-thieu-main.jpg"
             alt="Hotel Interior"
             className="rounded-2xl shadow-[0_0_25px_rgba(34,211,238,0.2)]"
           />

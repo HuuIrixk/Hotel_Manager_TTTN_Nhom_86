@@ -8,6 +8,29 @@ const Payment = require("../models/payment.model");
 // Lấy tất cả booking (Admin)
 exports.getAll = async (req, res) => {
   try {
+    const stalePendingBookings = await Booking.findAll({
+      where: {
+        status: "pending",
+      },
+      include: [
+        {
+          model: Payment,
+          required: true,
+          where: {
+            method: "vnpay",
+            status: "pending",
+          },
+        },
+      ],
+    });
+
+    for (const booking of stalePendingBookings) {
+      if (booking.Payment) {
+        await booking.Payment.destroy();
+      }
+      await booking.destroy();
+    }
+
     const bookings = await Booking.findAll({
       include: [
         { model: User, required: false },

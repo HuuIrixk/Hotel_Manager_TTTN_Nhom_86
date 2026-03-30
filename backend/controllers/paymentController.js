@@ -1,11 +1,15 @@
 // backend/controllers/paymentController.js
 const crypto = require('crypto')
 const qs = require('qs')
+const { Op } = require('sequelize')
 const Booking = require('../models/Booking')
 const Payment = require('../models/Payment')
 const Room = require('../models/Room')
 
 require('dotenv').config()
+
+const VNPAY_DRAFT_TTL_MS = 30 * 60 * 1000
+const vnpayDrafts = new Map()
 
 function sortObject(obj) {
   const sorted = {}
@@ -16,13 +20,231 @@ function sortObject(obj) {
   return sorted
 }
 
+function cleanupExpiredDrafts() {
+  const now = Date.now()
+
+  for (const [draftRef, draft] of vnpayDrafts.entries()) {
+    const age = now - draft.createdAt
+    const processedAge = draft.completedAt ? now - draft.completedAt : 0
+
+    if (age > VNPAY_DRAFT_TTL_MS || processedAge > VNPAY_DRAFT_TTL_MS) {
+      vnpayDrafts.delete(draftRef)
+    }
+  }
+}
+
+function generateDraftRef() {
+  return `${Date.now()}${crypto.randomInt(100000, 999999)}`
+}
+
+function buildVnpCreateDate() {
+  return new Date()
+    .toISOString()
+    .replace(/T/, ' ')
+    .replace(/\..+/, '')
+    .replace(/-/g, '')
+    .replace(/:/g, '')
+    .replace(/ /g, '')
+}
+
+async function validateBookingDraft({ room_id, check_in, check_out }) {
+  const checkInDate = new Date(check_in)
+  const checkOutDate = new Date(check_out)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (Number.isNaN(checkInDate.getTime()) || Number.isNaN(checkOutDate.getTime())) {
+    return { error: 'Ngày nhận phòng hoặc trả phòng không hợp lệ.' }
+  }
+
+  if (checkInDate >= checkOutDate) {
+    return { error: 'Ngày check-out phải sau ngày check-in' }
+  }
+
+  if (checkInDate < today) {
+    return { error: 'Ngày check-in không thể ở trong quá khứ' }
+  }
+
+  const room = await Room.findByPk(room_id)
+  if (!room) {
+    return { error: 'Không tìm thấy phòng' }
+  }
+
+  const existingBooking = await Booking.findOne({
+    where: {
+      room_id,
+      status: { [Op.in]: ['confirmed', 'completed'] },
+      check_in: { [Op.lt]: checkOutDate },
+      check_out: { [Op.gt]: checkInDate },
+    },
+  })
+
+  if (existingBooking) {
+    return { error: 'Phòng đã được đặt trong khoảng thời gian này.' }
+  }
+
+  const nights =
+    (checkOutDate.getTime() - checkInDate.getTime()) /
+    (1000 * 60 * 60 * 24)
+
+  return {
+    room,
+    checkInDate,
+    checkOutDate,
+    totalAmount: nights * Number(room.price || 0),
+  }
+}
+
+async function finalizeDraftPayment(draftRef, responseCode) {
+  cleanupExpiredDrafts()
+
+  const draft = vnpayDrafts.get(draftRef)
+  if (!draft) {
+    return { ok: false, code: 'PaymentNotFound' }
+  }
+
+  if (draft.result) {
+    return draft.result
+  }
+
+  if (draft.promise) {
+    return draft.promise
+  }
+
+  draft.promise = (async () => {
+    if (responseCode !== '00') {
+      vnpayDrafts.delete(draftRef)
+      return { ok: false, code: 'PaymentFailed' }
+    }
+
+    const validation = await validateBookingDraft(draft.bookingPayload)
+    if (validation.error) {
+      vnpayDrafts.delete(draftRef)
+      return { ok: false, code: 'RoomUnavailable', error: validation.error }
+    }
+
+    const sequelize = Booking.sequelize
+    const transaction = await sequelize.transaction()
+
+    try {
+      const booking = await Booking.create(
+        {
+          user_id: draft.user_id,
+          room_id: draft.bookingPayload.room_id,
+          check_in: validation.checkInDate,
+          check_out: validation.checkOutDate,
+          status: 'confirmed',
+        },
+        { transaction }
+      )
+
+      const payment = await Payment.create(
+        {
+          user_id: draft.user_id,
+          booking_id: booking.booking_id,
+          amount: validation.totalAmount,
+          method: 'vnpay',
+          status: 'success',
+        },
+        { transaction }
+      )
+
+      await booking.update(
+        { payment_id: payment.payment_id },
+        { transaction }
+      )
+
+      await transaction.commit()
+
+      const result = {
+        ok: true,
+        code: 'PaymentSuccess',
+        bookingId: booking.booking_id,
+        paymentId: payment.payment_id,
+        amount: validation.totalAmount,
+      }
+
+      draft.result = result
+      draft.completedAt = Date.now()
+      return result
+    } catch (err) {
+      await transaction.rollback()
+      vnpayDrafts.delete(draftRef)
+      throw err
+    }
+  })()
+
+  return draft.promise
+}
+
 // 1. TẠO URL THANH TOÁN VNPay – TÍNH TỔNG TIỀN THEO SỐ ĐÊM
 exports.createPaymentUrl = async (req, res) => {
   try {
-    const { booking_id } = req.body
+    const { booking_id, room_id, check_in, check_out, guests, full_name, email, phone, note } = req.body
     const user_id = req.user.id
 
     console.log('>>> createPaymentUrl body =', req.body, 'user =', req.user)
+
+    cleanupExpiredDrafts()
+
+    if (!booking_id) {
+      const validation = await validateBookingDraft({ room_id, check_in, check_out })
+      if (validation.error) {
+        return res.status(400).json({ error: validation.error })
+      }
+
+      const draftRef = generateDraftRef()
+      vnpayDrafts.set(draftRef, {
+        user_id,
+        bookingPayload: {
+          room_id,
+          check_in,
+          check_out,
+          guests,
+          full_name,
+          email,
+          phone,
+          note,
+        },
+        totalAmount: validation.totalAmount,
+        createdAt: Date.now(),
+      })
+
+      let ipAddr = req.headers['x-forwarded-for'] || req.connection.remoteAddress
+      if (ipAddr === '::1' || ipAddr === '127.0.0.1') {
+        ipAddr = '118.69.176.32'
+      }
+
+      const tmnCode = process.env.VNPAY_TMN_CODE
+      const secretKey = process.env.VNPAY_HASH_SECRET
+      let vnpUrl = process.env.VNPAY_URL
+      const returnUrl = process.env.VNPAY_RETURN_URL
+
+      const vnpParams = {
+        vnp_Version: '2.1.0',
+        vnp_Command: 'pay',
+        vnp_TmnCode: tmnCode,
+        vnp_Locale: 'vn',
+        vnp_CurrCode: 'VND',
+        vnp_TxnRef: draftRef,
+        vnp_OrderInfo: `Thanh toan dat phong ${draftRef}`,
+        vnp_OrderType: 'other',
+        vnp_Amount: validation.totalAmount * 100,
+        vnp_ReturnUrl: returnUrl,
+        vnp_IpAddr: ipAddr,
+        vnp_CreateDate: buildVnpCreateDate(),
+      }
+
+      const sortedParams = sortObject(vnpParams)
+      const signData = qs.stringify(sortedParams, { encode: false })
+      const hmac = crypto.createHmac('sha512', secretKey)
+      const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex')
+
+      sortedParams['vnp_SecureHash'] = signed
+      vnpUrl += '?' + qs.stringify(sortedParams, { encode: false })
+
+      return res.json({ paymentUrl: vnpUrl })
+    }
 
     // 1. Lấy booking + room, KHÔNG tin amount từ client
     const booking = await Booking.findOne({
@@ -94,13 +316,7 @@ exports.createPaymentUrl = async (req, res) => {
       vnp_Amount: totalAmount * 100,
       vnp_ReturnUrl: returnUrl,
       vnp_IpAddr: ipAddr,
-      vnp_CreateDate: new Date()
-        .toISOString()
-        .replace(/T/, ' ')
-        .replace(/\..+/, '')
-        .replace(/-/g, '')
-        .replace(/:/g, '')
-        .replace(/ /g, ''),
+      vnp_CreateDate: buildVnpCreateDate(),
     }
 
     const sortedParams = sortObject(vnpParams)
@@ -150,6 +366,18 @@ exports.vnpayReturn = async (req, res) => {
 
   if (secureHash === signed) {
     try {
+      if (vnpayDrafts.has(paymentId)) {
+        const draftResult = await finalizeDraftPayment(paymentId, responseCode)
+
+        if (draftResult.ok) {
+          redirectUrl = `${frontendUrl}/booking-result?paymentId=${draftResult.paymentId}&bookingId=${draftResult.bookingId}&amount=${draftResult.amount}&method=vnpay&success=true&message=${draftResult.code}`
+        } else {
+          redirectUrl += `&success=false&message=${draftResult.code}`
+        }
+
+        return res.redirect(redirectUrl)
+      }
+
       const payment = await Payment.findByPk(paymentId)
       if (!payment) {
         redirectUrl += '&success=false&message=PaymentNotFound'
@@ -168,10 +396,10 @@ exports.vnpayReturn = async (req, res) => {
 
           redirectUrl += '&success=true&message=PaymentSuccess'
         } else {
-          await payment.update({ status: 'failed' })
-
+          // Payment failed/cancelled – delete both payment and booking entirely
           const booking = await Booking.findByPk(payment.booking_id)
-          await booking.update({ status: 'cancelled' })
+          await payment.destroy()
+          if (booking) await booking.destroy()
 
           redirectUrl += '&success=false&message=PaymentFailed'
         }
@@ -204,7 +432,7 @@ exports.vnpayIpn = async (req, res) => {
   vnpParams = sortObject(vnpParams)
   const secretKey = process.env.VNPAY_HASH_SECRET
   const signData = qs.stringify(vnpParams, { encode: false })
-  const hmac = crypto.createHmac('sha512', secretKey)
+  const hmac = crypto.createHmac('hmacSHA512', secretKey)
   const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex')
 
   const paymentId = vnpParams['vnp_TxnRef']
@@ -212,6 +440,20 @@ exports.vnpayIpn = async (req, res) => {
 
   if (secureHash === signed) {
     try {
+      if (vnpayDrafts.has(paymentId)) {
+        const draftResult = await finalizeDraftPayment(paymentId, responseCode)
+
+        if (draftResult.ok || draftResult.code === 'PaymentFailed') {
+          return res.status(200).json({ RspCode: '00', Message: 'Success' })
+        }
+
+        if (draftResult.code === 'PaymentNotFound') {
+          return res.status(200).json({ RspCode: '01', Message: 'Order not found' })
+        }
+
+        return res.status(200).json({ RspCode: '00', Message: draftResult.error || 'Success' })
+      }
+
       const payment = await Payment.findByPk(paymentId)
       if (!payment) {
         return res
@@ -234,9 +476,10 @@ exports.vnpayIpn = async (req, res) => {
           payment_id: payment.payment_id,
         })
       } else {
-        await payment.update({ status: 'failed' })
+        // IPN failure – delete booking and payment entirely
         const booking = await Booking.findByPk(payment.booking_id)
-        await booking.update({ status: 'cancelled' })
+        await payment.destroy()
+        if (booking) await booking.destroy()
       }
 
       return res.status(200).json({ RspCode: '00', Message: 'Success' })
@@ -289,22 +532,23 @@ exports.directPayment = async (req, res) => {
     const roomPrice = Number(booking.Room?.price || 0);
     const totalAmount = nights * roomPrice;
 
-    // 3. Tạo bản ghi Payment method 'direct'
+    // 3. Tạo bản ghi Payment method 'direct' ở trạng thái pending
     const payment = await Payment.create({
       user_id: req.user.id,
       booking_id,
       amount: totalAmount,
-      method: 'direct', // khớp enum('vnpay','direct') trong Payment model
-      status: 'success',
+      method: 'direct',
+      status: 'pending',
     });
 
-    // 4. Update booking thành confirmed
-    booking.status = 'confirmed';
+    // 4. Giữ booking ở trạng thái pending để khách thanh toán tại khách sạn
+    booking.payment_id = payment.payment_id;
+    booking.status = 'pending';
     await booking.save();
 
     return res.json({
       message:
-        'Đã ghi nhận thanh toán trực tiếp. Đơn phòng đã được xác nhận.',
+        'Đã ghi nhận yêu cầu thanh toán trực tiếp. Đơn phòng đang chờ xác nhận.',
       booking,
       payment,
     });

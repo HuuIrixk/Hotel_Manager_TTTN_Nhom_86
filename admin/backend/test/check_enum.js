@@ -1,5 +1,5 @@
 const { Client } = require('pg');
-const { env } = require('./src/config/env');
+const { env } = require('../src/config/env');
 
 const client = new Client({
   connectionString: env.databaseUrl,

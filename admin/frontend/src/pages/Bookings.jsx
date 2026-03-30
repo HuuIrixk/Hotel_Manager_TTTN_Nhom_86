@@ -82,6 +82,7 @@ export default function Bookings() {
           <tbody>
             {filtered.map((b) => {
               const room = rooms.find((r) => r.id === b.roomId);
+              const displayStatus = b.status === "approved" ? "confirmed" : b.status;
               return (
                 <tr key={b.id} style={{ cursor: "pointer" }} onClick={() => openDetail(b)}>
                   <td>#{b.id}</td>
@@ -92,17 +93,19 @@ export default function Bookings() {
                     style={{
                       fontWeight: 700,
                       color:
-                        b.status === "approved"
+                        displayStatus === "confirmed"
                           ? "#10b981"
-                          : b.status === "rejected"
+                          : displayStatus === "pending"
+                          ? "#ffffff"
+                          : displayStatus === "rejected"
                           ? "#ef4444"
-                          : b.status === "cancelled" || b.status === "occupied"
+                          : displayStatus === "cancelled" || displayStatus === "occupied"
                           ? "#facc15"
                           : "#06b6d4",
                     }}
                   >
                     {String(
-                      b.status === "occupied" ? "booked" : b.status || ""
+                      displayStatus === "occupied" ? "booked" : displayStatus || ""
                     ).toUpperCase()}
                   </td>
                 </tr>

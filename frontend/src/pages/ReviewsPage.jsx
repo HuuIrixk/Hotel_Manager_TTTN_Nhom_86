@@ -3,6 +3,7 @@ import AOS from 'aos'
 import 'aos/dist/aos.css'
 import Header from '@/layouts/Header'
 import Footer from '@/layouts/Footer'
+import { useAuth } from '@/features/auth/AuthProvider'
 
 const DEFAULT_REVIEWS = [
   {
@@ -11,7 +12,7 @@ const DEFAULT_REVIEWS = [
     rating: 5,
     comment:
       'Dịch vụ cực kỳ tuyệt vời! Nhân viên thân thiện, đồ ăn ngon và không gian sang trọng. Mình sẽ quay lại lần nữa!',
-    date: '10/10/2025',
+    date: '02/03/2026',
   },
   {
     name: 'Trần Thảo Vy',
@@ -19,7 +20,7 @@ const DEFAULT_REVIEWS = [
     rating: 4,
     comment:
       'Khách sạn sạch sẽ, view hồ bơi đẹp. Mình thích cách decor ở đây, vừa hiện đại vừa tinh tế.',
-    date: '05/10/2025',
+    date: '26/02/2026',
   },
   {
     name: 'Lê Quốc Anh',
@@ -27,13 +28,15 @@ const DEFAULT_REVIEWS = [
     rating: 5,
     comment:
       'Không gian yên tĩnh, chất lượng phục vụ tuyệt hảo. Mình ấn tượng với bữa sáng tự chọn phong phú.',
-    date: '01/10/2025',
+    date: '10/01/2026',
   },
 ]
 
 export default function Reviews() {
+  const { user } = useAuth() || {}
   const [reviews, setReviews] = useState(DEFAULT_REVIEWS)
   const [newReview, setNewReview] = useState({ name: '', comment: '', rating: 5 })
+  const [authError, setAuthError] = useState('')
 
   useEffect(() => {
     document.title = "Đánh giá | VAA Hotel";
@@ -45,13 +48,18 @@ export default function Reviews() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    if (!user) {
+      setAuthError('Vui lòng đăng nhập để tiếp tục.')
+      return
+    }
+    setAuthError('')
     if (!newReview.name || !newReview.comment) return alert('Vui lòng nhập đầy đủ thông tin!')
     setReviews([{ ...newReview, date: new Date().toLocaleDateString(), avatar: 'https://randomuser.me/api/portraits/men/10.jpg' }, ...reviews])
     setNewReview({ name: '', comment: '', rating: 5 })
   }
 
   return (
-    <div className="relative min-h-screen bg-[url('https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center text-white">
+    <div className="relative min-h-screen bg-[url('frontend/public/images/danh-gia.jpg')] bg-cover bg-center text-white">
       {/* Overlay sang trọng */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
 
@@ -160,6 +168,9 @@ export default function Reviews() {
                 onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
               />
             </div>
+            {authError && (
+              <p className="text-red-400 text-sm text-center -mt-2">{authError}</p>
+            )}
             <div className="text-center pt-4">
               <button
                 type="submit"

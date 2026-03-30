@@ -56,7 +56,7 @@ export default function ServicesPage() {
   }, [])
 
   return (
-    <div className="relative min-h-screen bg-[url('https://images.unsplash.com/photo-1582719478189-894dcd622d8a?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center text-white">
+    <div className="relative min-h-screen bg-[url('frontend/public/images/pool-bar.jpg')] bg-cover bg-center text-white">
       {/* Overlay mờ */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"></div>
 

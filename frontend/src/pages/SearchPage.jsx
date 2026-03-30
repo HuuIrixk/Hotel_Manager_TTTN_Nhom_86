@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import AOS from 'aos'
+import 'aos/dist/aos.css'
 import Header from '@/layouts/Header'
 import Footer from '@/layouts/Footer'
 import { searchRooms } from '@/api/roomApi'
@@ -22,6 +24,10 @@ export default function SearchPage() {
   const API_BASE =
     import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
   const API_ORIGIN = API_BASE.replace(/\/api$/, '');
+
+  useEffect(() => {
+    AOS.init({ duration: 800, once: true })
+  }, [])
 
 
   const handleChange = (e) => {
@@ -119,7 +125,7 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[url('https://images.unsplash.com/photo-1582719478189-894dcd622d8a?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center text-white">
+    <div className="relative min-h-screen bg-[url('frontend/public/images/tim-phong.jpg')] bg-cover bg-center text-white">
       {/* overlay mờ */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
 
@@ -127,7 +133,7 @@ export default function SearchPage() {
 
       <main className="relative z-10 max-w-6xl mx-auto px-4 pt-32 pb-24 space-y-10">
         {/* Hero */}
-        <section className="text-center mb-4">
+        <section className="text-center mb-4" data-aos="fade-down">
           <h1 className="text-4xl md:text-5xl font-[Playfair_Display] font-bold text-cyan-400 drop-shadow-[0_2px_10px_rgba(34,211,238,0.6)]">
             Tìm phòng khách sạn
           </h1>
@@ -143,6 +149,7 @@ export default function SearchPage() {
         {/* Bộ lọc */}
         <form
           onSubmit={handleSearch}
+          data-aos="fade-up"
           className="bg-white/10 backdrop-blur-md border border-cyan-400/20 rounded-2xl shadow-[0_0_25px_rgba(15,23,42,0.6)] p-4 md:p-6 space-y-4"
         >
           <div className="grid md:grid-cols-4 gap-4">
@@ -254,7 +261,7 @@ export default function SearchPage() {
         </form>
 
         {/* Kết quả */}
-        <section className="space-y-3">
+        <section className="space-y-3" data-aos="fade-up" data-aos-delay="100">
           {rooms.length === 0 && !loading && hasSearched && (
             <p className="text-sm text-gray-300">
               Không tìm thấy phòng phù hợp. Thử nới lỏng điều kiện hoặc chọn lại
@@ -263,9 +270,11 @@ export default function SearchPage() {
           )}
 
           <div className="grid md:grid-cols-3 gap-5">
-            {rooms.map((room) => (
+            {rooms.map((room, index) => (
               <div
                 key={room.room_id}
+                data-aos="zoom-in-up"
+                data-aos-delay={Math.min(index * 80, 320)}
                 className="bg-white/10 backdrop-blur-md border border-cyan-400/20 rounded-xl overflow-hidden flex flex-col shadow-[0_0_20px_rgba(15,23,42,0.8)]"
               >
                 <div className="w-full h-40 bg-slate-200/20 overflow-hidden flex items-center justify-center">

@@ -43,6 +43,117 @@ function extractRoomNumberFromText(text) {
   return m[1]; // string
 }
 
+function detectIntentFast(query) {
+  const lower = (query || '').toLowerCase();
+  if (!lower.trim()) return null;
+
+  const bookingConfirmPatterns = [
+    /\bđặt phòng\s*\d{1,4}\b/i,
+    /\bbook phòng\s*\d{1,4}\b/i,
+    /\bcho tôi đặt phòng\b/i,
+    /\btôi lấy phòng\b/i,
+    /\bchốt phòng\b/i,
+  ];
+
+  if (bookingConfirmPatterns.some((p) => p.test(lower))) {
+    return 'booking_confirm';
+  }
+
+  const roomSuggestionPatterns = [
+    /\bphòng cho\s*\d+\s*(người|khách)\b/i,
+    /\btìm phòng\b/i,
+    /\bgợi ý phòng\b/i,
+    /\bcòn phòng\b/i,
+    /\bgiá\s*(rẻ|tốt)\b/i,
+    /\bcheck\s*in\b/i,
+    /\bcheck\s*out\b/i,
+  ];
+
+  if (roomSuggestionPatterns.some((p) => p.test(lower))) {
+    return 'room_suggestion';
+  }
+
+  const amenityPatterns = [
+    /\bhồ bơi\b/i,
+    /\bbãi đỗ xe\b/i,
+    /\bspa\b/i,
+    /\bnhà hàng\b/i,
+    /\btiện ích\b/i,
+    /\băn sáng\b/i,
+  ];
+
+  if (amenityPatterns.some((p) => p.test(lower))) {
+    return 'amenity';
+  }
+
+  const bookingFlowPatterns = [
+    /\bđặt phòng như\b/i,
+    /\bquy trình đặt phòng\b/i,
+    /\bcần cọc\b/i,
+    /\bthanh toán\b/i,
+  ];
+
+  if (bookingFlowPatterns.some((p) => p.test(lower))) {
+    return 'booking';
+  }
+
+  return null;
+}
+
+function extractRoomFiltersFast(query) {
+  const lower = (query || '').toLowerCase();
+  const filters = {
+    capacity: null,
+    minPrice: null,
+    maxPrice: null,
+    type: null,
+    checkIn: null,
+    checkOut: null,
+  };
+
+  const cap = lower.match(/(\d{1,2})\s*(người|khách)/i);
+  if (cap) filters.capacity = Number(cap[1]);
+
+  if (/\b(deluxe)\b/i.test(lower)) filters.type = 'deluxe';
+  else if (/\b(suite)\b/i.test(lower)) filters.type = 'suite';
+  else if (/\b(standard|tiêu chuẩn)\b/i.test(lower)) filters.type = 'standard';
+  else if (/\b(vip)\b/i.test(lower)) filters.type = 'vip';
+
+  const max = lower.match(/(?:dưới|tối đa|không quá)\s*(\d+[\d\.,]*)\s*(triệu|k|nghìn|vnd|đ)?/i);
+  const min = lower.match(/(?:trên|tối thiểu|từ)\s*(\d+[\d\.,]*)\s*(triệu|k|nghìn|vnd|đ)?/i);
+
+  const toVnd = (numRaw, unitRaw) => {
+    if (!numRaw) return null;
+    const clean = String(numRaw).replace(/[\.,](?=\d{3}\b)/g, '').replace(',', '.');
+    const value = Number(clean);
+    if (!Number.isFinite(value)) return null;
+
+    const unit = (unitRaw || '').toLowerCase();
+    if (unit.includes('triệu')) return Math.round(value * 1_000_000);
+    if (unit === 'k' || unit.includes('nghìn')) return Math.round(value * 1_000);
+    return Math.round(value);
+  };
+
+  if (max) filters.maxPrice = toVnd(max[1], max[2]);
+  if (min) filters.minPrice = toVnd(min[1], min[2]);
+
+  const dateMatches = [...String(query || '').matchAll(/\b(\d{1,4}[\/-]\d{1,2}(?:[\/-]\d{1,4})?)\b/g)].map((m) => m[1]);
+  if (dateMatches[0]) filters.checkIn = normalizeDateToFuture(dateMatches[0]);
+  if (dateMatches[1]) filters.checkOut = normalizeDateToFuture(dateMatches[1]);
+
+  return filters;
+}
+
+function hasEnoughFastFilters(filters) {
+  return Boolean(
+    filters.capacity ||
+      filters.minPrice ||
+      filters.maxPrice ||
+      filters.type ||
+      (filters.checkIn && filters.checkOut)
+  );
+}
+
 
 async function handleBookingConfirm({ userKey, query, passages }) {
   const lower = (query || '').toLowerCase();
@@ -209,7 +320,8 @@ Quy tắc:
           },
           { role: 'user', content: query }
         ],
-        temperature: 0
+        temperature: 0,
+        max_tokens: 80
       })
     });
 
@@ -305,6 +417,11 @@ function normalizeDateToFuture(raw) {
 
 // =============== TRÍCH FILTER TÌM PHÒNG ===============
 async function extractRoomFiltersFromQuery(query) {
+  const fastFilters = extractRoomFiltersFast(query);
+  if (hasEnoughFastFilters(fastFilters)) {
+    return fastFilters;
+  }
+
   try {
     const res = await fetch(env.chatUrl, {
       method: 'POST',
@@ -341,7 +458,8 @@ Hôm nay là ${new Date().toISOString().slice(0,10)}.
           },
           { role: 'user', content: query }
         ],
-        temperature: 0
+        temperature: 0,
+        max_tokens: 180
       })
     });
 
@@ -495,12 +613,18 @@ export async function chatWithRag({ query, userId, accessToken }) {
     };
   }
 
-  // 2. LẤY RAG CONTEXT
-  const passages = await retrieveTopK(query, 5);
+  // 2. LẤY RAG CONTEXT + PHÂN LOẠI INTENT (song song để giảm độ trễ)
+  const fastIntent = detectIntentFast(query);
+  const passagesPromise = retrieveTopK(query, 5);
+  const intentPromise = fastIntent
+    ? Promise.resolve({ intent: fastIntent })
+    : detectIntent(query);
+
+  const [passages, intentResult] = await Promise.all([passagesPromise, intentPromise]);
   const contextText = buildContextText(passages);
 
   // 3. PHÂN LOẠI INTENT
-  const { intent } = await detectIntent(query);
+  const { intent } = intentResult;
   const isRoomSuggestion = intent === 'room_suggestion';
   const isBookingConfirm = intent === 'booking_confirm';
   const isBookingRequest = intent === 'booking';
@@ -523,15 +647,26 @@ export async function chatWithRag({ query, userId, accessToken }) {
       roomStore.set(userKey, rooms);
 
       if (!rooms || rooms.length === 0) {
-        return {
-          answer:
-            'Hiện tại hệ thống không tìm được phòng phù hợp với điều kiện bạn đưa ra. ' +
-            'Bạn có thể thử thay đổi ngày nhận/trả phòng, số lượng khách hoặc vào trang Đặt phòng để xem đầy đủ danh sách phòng.',
-          passages,
-        };
-      }
+        // Không return sớm — tiếp tục để RAG+LLM trả lời từ knowledge base
+        roomsApiContext = '';
+      } else {
+        roomsApiContext = '\n\n---\n' + buildRoomsApiContext(rooms, filters);
 
-      roomsApiContext = '\n\n---\n' + buildRoomsApiContext(rooms, filters);
+        // Có phòng + user hỏi tìm/đặt → trả lời thẳng không qua LLM
+        if (isRoomSuggestion || isBookingRequest) {
+          const directAnswer =
+            'Mình đã tìm thấy một số phòng phù hợp với yêu cầu của bạn. Bạn có thể bấm vào link đặt phòng ngay bên dưới để tiếp tục.' +
+            roomsApiContext;
+
+          appendToHistory(userKey, 'user', query);
+          appendToHistory(userKey, 'assistant', directAnswer);
+
+          return {
+            answer: directAnswer,
+            passages,
+          };
+        }
+      }
     } catch (err) {
       console.error('[ai] Lỗi khi gọi API phòng cho intent room_suggestion/booking:', err);
       roomsApiContext =
@@ -561,7 +696,8 @@ export async function chatWithRag({ query, userId, accessToken }) {
         ...history,
         { role: 'user', content: query }
       ],
-      temperature: 0.2
+      temperature: 0.2,
+      max_tokens: 320
     })
   });
 

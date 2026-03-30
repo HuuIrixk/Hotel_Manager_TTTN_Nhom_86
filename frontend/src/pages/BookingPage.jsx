@@ -6,7 +6,7 @@ import Footer from '@/layouts/Footer'
 import { useAuth } from '@/features/auth/AuthProvider'
 // ĐỔI: dùng API lấy phòng theo số phòng
 import { getRoomByNumber } from '@/api/roomApi'
-import { createBooking } from '@/api/bookingApi'
+import { validateBooking } from '@/api/bookingApi'
 
 function normalizeQueryDate(value) {
   if (!value) return ''
@@ -35,6 +35,9 @@ export default function BookingPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuth() // lấy user từ Auth
+  const API_BASE =
+    import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api'
+  const API_ORIGIN = API_BASE.replace(/\/api$/, '')
 
   const searchParams = new URLSearchParams(location.search)
   // THỰC CHẤT đây là room_number do AI gửi
@@ -58,9 +61,9 @@ export default function BookingPage() {
   const [phone, setPhone] = useState('')
   const [note, setNote] = useState('')
 
-  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     document.title = 'Đặt phòng | VAA Hotel'
@@ -120,6 +123,20 @@ export default function BookingPage() {
     return nights * (room.price || 0)
   }, [room, nights])
 
+  const roomImageSrc = useMemo(() => {
+    const rawImage = room?.image_url || room?.image
+    if (!rawImage) return '/images/superior-room.jpg'
+
+    if (rawImage.startsWith('http')) return rawImage
+    if (rawImage.startsWith('/images/')) return rawImage
+
+    if (rawImage.startsWith('/')) {
+      return `${API_ORIGIN}${rawImage}`
+    }
+
+    return `${API_ORIGIN}/${rawImage}`
+  }, [room, API_ORIGIN])
+
   const formatCurrency = (num) => {
     if (!num || Number.isNaN(Number(num))) return '0₫'
     return new Intl.NumberFormat('vi-VN', {
@@ -146,36 +163,33 @@ export default function BookingPage() {
       return
     }
 
+    const bookingPayload = {
+      room_id: Number(room.room_id),
+      check_in: checkIn,
+      check_out: checkOut,
+      guests: Number(guests),
+      full_name: fullName,
+      email,
+      phone,
+      note,
+    }
+
     try {
       setSubmitting(true)
-      const payload = {
-        // DÙNG room.room_id (PK) chứ không dùng query
-        room_id: Number(room.room_id),
-        check_in: checkIn,
-        check_out: checkOut,
-        guests: Number(guests),
-        full_name: fullName,
-        email,
-        phone,
-        note,
-      }
+      await validateBooking(bookingPayload)
 
-      const res = await createBooking(payload)
-      const booking = res.booking || res.data?.booking || res
-
-      setMessage('Tạo đơn đặt phòng thành công, chuyển sang thanh toán...')
-
-      navigate(
-        `/payment?bookingId=${booking.booking_id}&amount=${
-          res.totalAmount || amountFromQuery || estimatedTotal
-        }`
-      )
+      navigate('/payment', {
+        state: {
+          bookingPayload,
+          amount: estimatedTotal,
+          roomName: room.name || `Phòng #${room.room_number || room.room_id}`,
+        },
+      })
     } catch (err) {
       console.error(err)
       setError(
         err?.response?.data?.error ||
-          err?.response?.data?.message ||
-          'Không thể tạo đơn đặt phòng. Vui lòng thử lại.'
+          'Không thể kiểm tra tình trạng phòng. Vui lòng thử lại.'
       )
     } finally {
       setSubmitting(false)
@@ -320,7 +334,7 @@ export default function BookingPage() {
                       disabled={submitting}
                       className="w-full md:w-auto px-6 py-2.5 rounded-md bg-cyan-500 hover:bg-cyan-400 text-sm font-semibold text-black transition disabled:opacity-60"
                     >
-                      {submitting ? 'Đang tạo đơn...' : 'Tiếp tục tới thanh toán'}
+                      {submitting ? 'Đang kiểm tra phòng...' : 'Tiếp tục tới thanh toán'}
                     </button>
                   </div>
                 </form>
@@ -342,21 +356,22 @@ export default function BookingPage() {
                   ) : room ? (
                     <>
                       <div className="flex gap-3 mb-3">
-                        {room.image_url && (
-                          <div className="w-20 h-20 rounded-md overflow-hidden bg-slate-200">
-                            <img
-                              src={room.image_url}
-                              alt={room.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        )}
+                        <div className="w-20 h-20 rounded-md overflow-hidden bg-slate-200">
+                          <img
+                            src={roomImageSrc}
+                            alt={room.name || 'Room'}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = '/images/superior-room.jpg'
+                            }}
+                          />
+                        </div>
                         <div className="flex-1">
                           <p className="font-semibold text-sm text-slate-900">
                             {room.name}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Số phòng: {room.room_number || 'N/A'}
+                            Phòng: {room.room_number || 'N/A'}
                           </p>
                           <p className="text-xs text-slate-500">
                             Loại: {room.type || 'Standard'}

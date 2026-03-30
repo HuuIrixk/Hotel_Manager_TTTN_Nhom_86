@@ -42,9 +42,23 @@ const Room = sequelize.define("Room", {
     allowNull: true,
   },
 
+  amenities: {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: [],
+  },
+
 }, {
   tableName: "rooms",
   timestamps: false,
 });
 
+async function ensureRoomSchema() {
+  await sequelize.query(`
+    ALTER TABLE rooms
+    ADD COLUMN IF NOT EXISTS amenities JSONB NOT NULL DEFAULT '[]'::jsonb;
+  `);
+}
+
 module.exports = Room;
+module.exports.ensureRoomSchema = ensureRoomSchema;

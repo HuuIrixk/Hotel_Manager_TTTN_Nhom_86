@@ -1,6 +1,8 @@
 // src/pages/HomePage.jsx
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import AOS from 'aos'
+import 'aos/dist/aos.css'
 import Header from '@/layouts/Header'
 import Footer from '@/layouts/Footer'
 import HeroSection from '@/features/home/HeroSection'
@@ -95,6 +97,72 @@ function SuggestedRoomCard({ room, onBook, onViewDetail, isLight }) {
           </span>
         </p>
 
+        {(() => {
+          const amenities = Array.isArray(room.amenities)
+            ? room.amenities
+            : typeof room.amenities === 'string' && room.amenities
+            ? (() => { try { return JSON.parse(room.amenities) } catch { return [] } })()
+            : []
+          return amenities.length > 0 ? (
+            <div className="relative group">
+              <div className="flex flex-wrap gap-1 mt-1">
+              {amenities.slice(0, 4).map((a) => (
+                <span
+                  key={a}
+                  className={
+                    'text-xs px-2 py-0.5 rounded-full border ' +
+                    (isLight
+                      ? 'bg-cyan-50 border-cyan-200 text-cyan-700'
+                      : 'bg-cyan-400/10 border-cyan-300/30 text-cyan-300')
+                  }
+                >
+                  {a}
+                </span>
+              ))}
+              {amenities.length > 4 && (
+                <span
+                  className={
+                    'text-xs px-2 py-0.5 rounded-full border cursor-default ' +
+                    (isLight
+                      ? 'bg-slate-100 border-slate-300 text-slate-500'
+                      : 'bg-slate-700/40 border-slate-500/30 text-gray-400')
+                  }
+                >
+                  +{amenities.length - 4}
+                </span>
+              )}
+            </div>
+              {amenities.length > 4 && (
+                <div
+                  className={
+                    'hidden group-hover:block absolute z-20 right-0 bottom-full mb-2 w-64 p-2 rounded-lg border shadow-lg ' +
+                    (isLight
+                      ? 'bg-white border-slate-200 text-slate-700'
+                      : 'bg-slate-900 border-slate-700 text-gray-200')
+                  }
+                >
+                  <div className="text-xs font-semibold mb-1">Tất cả tiện nghi</div>
+                  <div className="flex flex-wrap gap-1">
+                    {amenities.map((item) => (
+                      <span
+                        key={`all-${item}`}
+                        className={
+                          'text-[11px] px-2 py-0.5 rounded-full border ' +
+                          (isLight
+                            ? 'bg-cyan-50 border-cyan-200 text-cyan-700'
+                            : 'bg-cyan-400/10 border-cyan-300/30 text-cyan-300')
+                        }
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null
+        })()}
+
         <p
           className={
             'text-xs mt-1 ' +
@@ -151,7 +219,11 @@ export default function HomePage() {
     document.title = 'Trang chủ | VAA Hotel'
   }, [])
 
-  // Lấy gợi ý phòng từ DB (chưa dùng AI)
+  useEffect(() => {
+    AOS.init({ duration: 800, once: true })
+  }, [])
+
+  // Lấy gợi ý phòng từ DB
   useEffect(() => {
     let cancelled = false
     const fetchSuggestions = async () => {
@@ -194,7 +266,7 @@ export default function HomePage() {
     navigate(`/search?${params.toString()}`)
   }
 
-  // Click "Đặt phòng" ở card gợi ý → đi thẳng Booking (Hướng A)
+  // Click "Đặt phòng" ở card gợi ý → đi thẳng Booking 
   const handleBookSuggested = (room) => {
     if (!room) return
 
@@ -232,6 +304,8 @@ export default function HomePage() {
         <div className="absolute left-0 right-0 bottom-12 flex justify-center z-30">
           <form
             onSubmit={handleSearch}
+            data-aos="fade-up"
+            data-aos-delay="100"
             className="hero-search-card bg-white/10 backdrop-blur-md border border-cyan-400/40 rounded-2xl shadow-xl px-6 py-4 flex flex-col sm:flex-row gap-4 items-center w-[90%] max-w-4xl"
           >
             {/* Ngày đến */}
@@ -306,7 +380,7 @@ export default function HomePage() {
       <main className={isLight ? 'bg-slate-50' : 'bg-dark-900'}>
         {/* Đề xuất cho bạn */}
         <section className="layout-container py-16">
-          <div className="flex items-center justify-between pt-16 mb-8">
+          <div className="flex items-center justify-between pt-16 mb-8" data-aos="fade-up">
             <h2
               className={
                 'luxury-header text-3xl font-bold ' +
@@ -359,14 +433,19 @@ export default function HomePage() {
             {!suggestLoading &&
               !suggestError &&
               suggestedRooms.length > 0 &&
-              suggestedRooms.map((room) => (
-                <SuggestedRoomCard
+              suggestedRooms.map((room, index) => (
+                <div
                   key={room.room_id || room.id}
-                  room={room}
-                  onBook={handleBookSuggested}
-                  onViewDetail={handleViewDetail}
-                  isLight={isLight}
-                />
+                  data-aos="fade-up"
+                  data-aos-delay={Math.min(index * 120, 240)}
+                >
+                  <SuggestedRoomCard
+                    room={room}
+                    onBook={handleBookSuggested}
+                    onViewDetail={handleViewDetail}
+                    isLight={isLight}
+                  />
+                </div>
               ))}
           </div>
         </section>

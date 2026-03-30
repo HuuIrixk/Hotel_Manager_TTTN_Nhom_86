@@ -7,6 +7,7 @@ export default function Sidebar({ page, setPage }) {
     { label: "Đặt phòng", page: "bookings" },
     { label: "Người dùng", page: "users" },
     { label: "Báo cáo", page: "reports" },
+    { label: "Liên hệ", page: "contact" },
     { label: "Cơ sở tri thức AI", page: "knowledge" },
   ];
 

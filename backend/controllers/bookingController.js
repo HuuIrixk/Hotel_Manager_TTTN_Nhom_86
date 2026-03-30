@@ -3,6 +3,60 @@ const Room = require('../models/Room')
 const { Op } = require('sequelize')
 const Payment = require('../models/Payment');
 
+async function validateBookingInput({ room_id, check_in, check_out }) {
+  const checkInDate = new Date(check_in)
+  const checkOutDate = new Date(check_out)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (Number.isNaN(checkInDate.getTime()) || Number.isNaN(checkOutDate.getTime())) {
+    return { error: 'Ngày nhận phòng hoặc trả phòng không hợp lệ.' }
+  }
+
+  if (checkInDate >= checkOutDate) {
+    return { error: 'Ngày check-out phải sau ngày check-in' }
+  }
+
+  if (checkInDate < today) {
+    return { error: 'Ngày check-in không thể ở trong quá khứ' }
+  }
+
+  const room = await Room.findByPk(room_id)
+  if (!room) {
+    return { error: 'Không tìm thấy phòng' }
+  }
+
+  const existingBooking = await Booking.findOne({
+    where: {
+      room_id,
+      status: { [Op.in]: ['confirmed', 'completed'] },
+      check_in: { [Op.lt]: checkOutDate },
+      check_out: { [Op.gt]: checkInDate },
+    },
+  })
+
+  if (existingBooking) {
+    return { error: 'Phòng đã được đặt trong khoảng thời gian này.' }
+  }
+
+  return { room, checkInDate, checkOutDate }
+}
+
+exports.validateBooking = async (req, res) => {
+  try {
+    const validation = await validateBookingInput(req.body)
+
+    if (validation.error) {
+      return res.status(400).json({ error: validation.error })
+    }
+
+    return res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'Lỗi server khi kiểm tra đặt phòng' })
+  }
+}
+
 
 // Đặt phòng
 exports.createBooking = async (req, res) => {
@@ -12,45 +66,12 @@ exports.createBooking = async (req, res) => {
 
     console.log('>>> createBooking body =', req.body, 'user =', req.user)
 
-    // 1. Kiểm tra ngày hợp lệ
-    const checkInDate = new Date(check_in)
-    const checkOutDate = new Date(check_out)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0) // Set về đầu ngày
-
-    if (checkInDate >= checkOutDate) {
-      return res
-        .status(400)
-        .json({ error: 'Ngày check-out phải sau ngày check-in' })
-    }
-    if (checkInDate < today) {
-      return res
-        .status(400)
-        .json({ error: 'Ngày check-in không thể ở trong quá khứ' })
+    const validation = await validateBookingInput({ room_id, check_in, check_out })
+    if (validation.error) {
+      return res.status(400).json({ error: validation.error })
     }
 
-    // 2. Kiểm tra phòng có tồn tại không
-    const room = await Room.findByPk(room_id)
-    if (!room) {
-      return res.status(404).json({ error: 'Không tìm thấy phòng' })
-    }
-
-    // 3. Check trùng lịch
-    const existingBooking = await Booking.findOne({
-      where: {
-        room_id: room_id,
-        status: { [Op.ne]: 'cancelled' }, // Không phải là đơn đã hủy
-        // Logic xung đột: (O_in < N_out) AND (O_out > N_in)
-        check_in: { [Op.lt]: checkOutDate },
-        check_out: { [Op.gt]: checkInDate },
-      },
-    })
-
-    if (existingBooking) {
-      return res
-        .status(400)
-        .json({ error: 'Phòng đã được đặt trong khoảng thời gian này.' })
-    }
+    const { room, checkInDate, checkOutDate } = validation
 
     // 4. Tạo booking (status: 'pending')
     const booking = await Booking.create({
@@ -58,7 +79,7 @@ exports.createBooking = async (req, res) => {
       room_id,
       check_in: checkInDate,
       check_out: checkOutDate,
-      status: 'confirmed', // Tự động xác nhận (theo yêu cầu mới)
+      status: 'pending',
     })
 
     // 5. Tính tổng tiền
@@ -87,6 +108,31 @@ exports.createBooking = async (req, res) => {
 // (Khách hàng) Xem lịch sử đặt phòng của mình
 exports.getMyBookings = async (req, res) => {
   try {
+    const stalePendingPayments = await Payment.findAll({
+      where: {
+        method: 'vnpay',
+        status: 'pending',
+      },
+      include: [
+        {
+          model: Booking,
+          required: true,
+          where: {
+            user_id: req.user.id,
+            status: 'pending',
+          },
+        },
+      ],
+    })
+
+    for (const payment of stalePendingPayments) {
+      const booking = payment.Booking
+      await payment.destroy()
+      if (booking) {
+        await booking.destroy()
+      }
+    }
+
     const bookings = await Booking.findAll({
       where: { user_id: req.user.id },
       include: [

@@ -1,20 +1,27 @@
 // src/pages/PaymentPage.jsx
 import { useState, useEffect } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import AOS from 'aos'
 import 'aos/dist/aos.css'
 
 import Header from '@/layouts/Header'
 import Footer from '@/layouts/Footer'
-import { createVnpayPayment, directPayment } from '@/api/paymentApi'
+import { createVnpayPayment } from '@/api/paymentApi'
+import { createBooking } from '@/api/bookingApi'
 
 export default function PaymentPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const location = useLocation()
 
-  const bookingId = searchParams.get('bookingId')
-  const amount = Number(searchParams.get('amount') || 0)
-  const room = searchParams.get('room') || ''
+  // New flow: booking data passed via router state from BookingPage
+  const stateData = location.state || {}
+  const bookingPayload = stateData.bookingPayload || null
+  const amount = stateData.amount || Number(searchParams.get('amount') || 0)
+  const room = stateData.roomName || searchParams.get('room') || ''
+
+  // Legacy fallback: bookingId already in URL (e.g. direct navigation)
+  const bookingIdFromUrl = searchParams.get('bookingId') || null
 
   const [method, setMethod] = useState('vnpay')   // default: VNPay
   const [loading, setLoading] = useState(false)
@@ -25,79 +32,68 @@ export default function PaymentPage() {
     AOS.init({ duration: 800, once: true })
   }, [])
 
+  // If navigated here directly without booking data, send back to search
+  useEffect(() => {
+    if (!bookingPayload && !bookingIdFromUrl) {
+      navigate('/search', { replace: true })
+    }
+  }, [bookingPayload, bookingIdFromUrl, navigate])
+
   const formatCurrency = (num) =>
     new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND',
     }).format(num || 0)
 
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      setError('');
-      setSuccess('');
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
 
-      if (!bookingId) {
-        setError('Thiếu bookingId, vui lòng đặt phòng lại.');
-        return;
-      }
+    try {
+      setLoading(true)
 
-      try {
-        setLoading(true);
+      if (method === 'vnpay') {
+        const payload = bookingPayload
+          ? bookingPayload
+          : { booking_id: Number(bookingIdFromUrl) }
 
-        if (method === 'vnpay') {
-          const res = await createVnpayPayment({
-            booking_id: Number(bookingId), // CHỈ CẦN booking_id
-          });
-
-          console.log('VNPay createPaymentUrl response:', res.data);
-
-          if (res.data?.paymentUrl) {
-            // Redirect sang VNPay
-            window.location.href = res.data.paymentUrl;
-          } else {
-            setError('Không nhận được URL thanh toán từ server.');
-          }
-        } else if (method === 'direct') {
-          // Thanh toán trực tiếp
-          const res = await directPayment({ booking_id: Number(bookingId) });
-
-          const payment = res.data?.payment;
-          const msg =
-            res.data?.message || 'Thanh toán trực tiếp tại khách sạn thành công.';
-
-          // Redirect sang BookingResultPage để hiển thị kết quả
-          const query = new URLSearchParams({
-            paymentId: payment?.payment_id?.toString() || '',
-            bookingId: bookingId || '',
-            amount:
-              payment?.amount != null
-                ? String(payment.amount)
-                : String(amount || 0),
-            method: 'direct',
-            success: 'true',
-            message: 'DirectPaymentSuccess',
-          }).toString();
-
-          console.log('>>> directPayment success:', msg);
-
-          navigate(`/booking-result?${query}`);
+        const res = await createVnpayPayment(payload)
+        if (res.data?.paymentUrl) {
+          window.location.href = res.data.paymentUrl
         } else {
-          // Các phương thức khác (momo/bank) hiện đang mô tả, không gọi API
-          if (method === 'bank') {
-            setSuccess('Vui lòng chuyển khoản theo thông tin hiển thị.');
-          } else if (method === 'momo') {
-            setSuccess('Vui lòng quét mã MoMo để thanh toán.');
-          }
+          setError('Không nhận được URL thanh toán từ server.')
         }
-      } catch (err) {
-        console.error(err);
-        const msg =
-          err?.response?.data?.error || 'Thanh toán thất bại, vui lòng thử lại.';
-        setError(msg);
-      } finally {
-        setLoading(false);
+      } else if (method === 'direct') {
+        if (!bookingPayload) {
+          setError('Thiếu thông tin đặt phòng, vui lòng quay lại đặt phòng lại.')
+          return
+        }
+
+        const res = await createBooking(bookingPayload)
+        const booking = res.booking || res.data?.booking || res
+        const query = new URLSearchParams({
+          bookingId: booking?.booking_id?.toString() || '',
+          amount:
+            res.totalAmount != null ? String(res.totalAmount) : String(amount || 0),
+          method: 'direct',
+          success: 'true',
+          message: 'DirectBookingPending',
+        }).toString()
+        navigate(`/booking-result?${query}`)
+      } else {
+        if (method === 'bank') setSuccess('Vui lòng chuyển khoản theo thông tin hiển thị.')
+        else if (method === 'momo') setSuccess('Vui lòng quét mã MoMo để thanh toán.')
       }
-    };
+    } catch (err) {
+      console.error(err)
+      const msg =
+        err?.response?.data?.error || 'Thanh toán thất bại, vui lòng thử lại.'
+      setError(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
 
 
   return (
@@ -117,7 +113,7 @@ export default function PaymentPage() {
         >
           <div className="mb-8 text-center">
             <p className="text-gray-300">
-              Phòng: {room || 'Chưa rõ'} – Mã đặt phòng: {bookingId || 'N/A'}
+              Phòng: {room || 'Chưa rõ'}
             </p>
             <h2 className="text-4xl text-cyan-400 font-semibold mt-2">
               {formatCurrency(amount)}
@@ -185,8 +181,8 @@ export default function PaymentPage() {
                   Thanh toán trực tiếp tại khách sạn
                 </h4>
                 <p className="text-gray-300 text-sm">
-                  Vui lòng thanh toán tại quầy lễ tân. Hệ thống sẽ ghi nhận đơn
-                  này là đã xác nhận.
+                  Hệ thống sẽ tạo đơn ở trạng thái chờ. Bạn thanh toán tại quầy
+                  lễ tân khi đến khách sạn.
                 </p>
               </div>
             )}
@@ -213,7 +209,7 @@ export default function PaymentPage() {
                   ? 'Đang xử lý...'
                   : method === 'vnpay'
                   ? 'Thanh toán qua VNPay'
-                  : 'Xác nhận thanh toán trực tiếp'}
+                  : 'Xác nhận đặt phòng'}
               </button>
             </div>
           </form>

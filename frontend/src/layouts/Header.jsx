@@ -11,6 +11,7 @@ export default function Header() {
 
   // Trang hotel detail: /hotels/:id
   const isHotelPage = location.pathname.startsWith('/hotels')
+  const isRoomDetailPage = location.pathname.startsWith('/rooms')
   const isBookingPage = location.pathname.startsWith('/booking')
   const isUserPage = location.pathname.startsWith('/user')
 
@@ -23,7 +24,7 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const headerClass = isHotelPage || isBookingPage || isUserPage
+  const headerClass = isHotelPage || isRoomDetailPage || isBookingPage || isUserPage
     ? 'bg-black/80 backdrop-blur-md shadow-md py-3'
     : scrolled
     ? 'bg-black/70 backdrop-blur-md shadow-md py-3'

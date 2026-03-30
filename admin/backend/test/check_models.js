@@ -1,8 +1,8 @@
-const sequelize = require("./src/config/db");
-const Booking = require("./src/models/booking.model");
-const User = require("./src/models/user.model");
-const Room = require("./src/models/room.model");
-const Payment = require("./src/models/payment.model");
+const sequelize = require("../src/config/db");
+const Booking = require("../src/models/booking.model");
+const User = require("../src/models/user.model");
+const Room = require("../src/models/room.model");
+const Payment = require("../src/models/payment.model");
 
 async function check() {
   try {

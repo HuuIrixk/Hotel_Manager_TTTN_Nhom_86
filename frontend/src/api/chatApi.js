@@ -7,7 +7,7 @@ export async function sendChatMessage({ message, userId, accessToken }) {
       // sau này có auth thì gắn thêm Authorization ở đây nếu cần
     },
     body: JSON.stringify({
-      message,      // 👈 tên field chuẩn backend đọc
+      message,      //  tên field chuẩn backend đọc
       userId,
       accessToken,  // nếu backend dùng, giữ lại, không thì có thể bỏ
     }),

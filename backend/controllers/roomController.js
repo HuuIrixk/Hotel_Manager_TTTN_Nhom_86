@@ -84,7 +84,7 @@ exports.searchRooms = async (req, res) => {
 
       const booked = await Booking.findAll({
         where: {
-          status: { [Op.ne]: 'cancelled' },
+          status: { [Op.in]: ['confirmed', 'completed'] },
           check_in: { [Op.lt]: outDate },
           check_out: { [Op.gt]: inDate },
         },
@@ -170,9 +170,6 @@ exports.getRoomByNumber = async (req, res) => {
   }
 }
 
-
-// Gợi ý phòng cho HomePage - tạm thời dựa trên DB
-// TODO: sau này có thể gọi AI service để xếp hạng theo lịch sử người dùng
 exports.getRecommendedRooms = async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 6

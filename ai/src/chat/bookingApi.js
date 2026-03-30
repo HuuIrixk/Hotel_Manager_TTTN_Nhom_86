@@ -3,10 +3,21 @@ import { env } from '../config/env.js';
 
 const BASE_URL = env.backendUrl || 'http://localhost:4000';
 
+const ROOM_TYPE_MAP = {
+  suite: 'Suite',
+  vip: 'VIP',
+  standard: 'Standard',
+};
+
+function normalizeType(type) {
+  if (!type) return null;
+  return ROOM_TYPE_MAP[type.toLowerCase()] || type;
+}
+
 export async function searchRoomsAPI(filters) {
   const params = new URLSearchParams();
 
-  if (filters.type) params.set('type', filters.type);
+  if (filters.type) params.set('type', normalizeType(filters.type));
   if (filters.capacity) params.set('capacity', String(filters.capacity));
   if (filters.minPrice) params.set('minPrice', String(filters.minPrice));
   if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
@@ -22,7 +33,7 @@ export async function searchRoomsAPI(filters) {
   return res.json();
 }
 
-// NEW: Lấy info phòng theo số phòng
+//Lấy info phòng theo số phòng
 export async function getRoomInfoByNumber(roomNumber) {
   const res = await fetch(`${BASE_URL}/api/rooms/by-number/${roomNumber}`);
 

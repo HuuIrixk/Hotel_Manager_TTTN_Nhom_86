@@ -110,9 +110,10 @@ export default function UserPage() {
 
       try {
         const data = await getMyBookings()
-        setBookings(Array.isArray(data) ? data : [])
-        if (data?.length > 0) {
-          setSelectedBookingId(data[0].booking_id)
+        const all = Array.isArray(data) ? data : []
+        setBookings(all)
+        if (all.length > 0) {
+          setSelectedBookingId(all[0].booking_id)
         }
       } catch (err) {
         console.error(err)

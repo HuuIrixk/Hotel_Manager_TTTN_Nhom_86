@@ -30,21 +30,48 @@ export function AppDataProvider({ children }) {
         capacity: r.capacity,
         description: r.description || "",
         image: r.image_url || null,
+        amenities: Array.isArray(r.amenities) ? r.amenities : [],
       }));
       setRooms(mappedRooms);
 
       // Map Bookings
-      const mappedBookings = (Array.isArray(bData) ? bData : []).map(b => ({
-        id: b.booking_id,
-        customerName: b.User ? b.User.username : "Unknown",
-        customerPhone: b.User ? b.User.phone : "",
-        roomId: b.room_id,
-        checkIn: b.check_in ? b.check_in.split('T')[0] : "",
-        checkOut: b.check_out ? b.check_out.split('T')[0] : "",
-        status: b.status,
-        total: b.Payment ? Number(b.Payment.amount) : 0,
-        Payment: b.Payment // Keep original payment info if needed
-      }));
+      const mappedBookings = (Array.isArray(bData) ? bData : []).map((b) => {
+        const checkIn = b.check_in ? b.check_in.split("T")[0] : "";
+        const checkOut = b.check_out ? b.check_out.split("T")[0] : "";
+
+        const checkInDate = checkIn ? new Date(checkIn) : null;
+        const checkOutDate = checkOut ? new Date(checkOut) : null;
+        const nights =
+          checkInDate && checkOutDate
+            ? Math.max(
+                0,
+                (checkOutDate.getTime() - checkInDate.getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            : 0;
+
+        const paidByPayment =
+          b.Payment && b.Payment.status === "success"
+            ? Number(b.Payment.amount)
+            : 0;
+
+        const fallbackByRoomPrice =
+          Number(b.Room?.price || 0) * (Number.isFinite(nights) ? nights : 0);
+
+        const total = paidByPayment || fallbackByRoomPrice || 0;
+
+        return {
+          id: b.booking_id,
+          customerName: b.User ? b.User.username : "Unknown",
+          customerPhone: b.User ? b.User.phone : "",
+          roomId: b.room_id,
+          checkIn,
+          checkOut,
+          status: b.status === "approved" ? "confirmed" : b.status,
+          total,
+          Payment: b.Payment,
+        };
+      });
       setBookings(mappedBookings);
 
       // Map Users
@@ -101,7 +128,7 @@ export function AppDataProvider({ children }) {
   // Approve booking
   function approveBooking(id) {
     setBookings((old) =>
-      old.map((b) => (b.id === id ? { ...b, status: "approved" } : b))
+      old.map((b) => (b.id === id ? { ...b, status: "confirmed" } : b))
     );
     // Logic update room status nên được xử lý ở backend khi confirm booking
     const b = bookings.find((x) => x.id === id);
@@ -137,10 +164,18 @@ export function AppDataProvider({ children }) {
       const dateStr = b.checkIn || b.check_in;
       if (!dateStr) return false;
 
+      if (!(b.status === "confirmed" || b.status === "completed")) {
+        return false;
+      }
+
+      if (b.Payment && b.Payment.status !== "success") {
+        return false;
+      }
+
       const ci = new Date(dateStr);
       if (f && ci < f) return false;
       if (t && ci > t) return false;
-      return b.status === "approved" || b.status === "confirmed" || b.status === "completed";
+      return true;
     });
 
     const total = filtered.reduce((sum, b) => {
