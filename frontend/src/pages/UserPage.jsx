@@ -5,36 +5,11 @@ import { useNavigate } from 'react-router-dom'
 import Header from '@/layouts/Header'
 import Footer from '@/layouts/Footer'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { useTheme } from '@/features/theme/ThemeProvider'
 import { getProfile, updateProfile, changePassword } from '@/api/authApi'
 import { getMyBookings, cancelBooking } from '@/api/bookingApi'
 
-// ===== Nút đổi theme riêng =====
-function ThemeToggleButton({ theme, toggleTheme }) {
-  const isLight = theme === 'light'
-
-  return (
-    <button
-      type="button"
-      onClick={toggleTheme}
-      className={
-        'inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium shadow-sm transition ' +
-        (isLight
-          ? 'bg-white/90 border border-slate-300 text-slate-800 hover:bg-slate-50'
-          : 'bg-slate-900/90 border border-slate-600 text-slate-100 hover:bg-slate-800')
-      }
-    >
-      {/* <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" /> */}
-      <span>
-        {isLight ? 'Chuyển sang chế độ tối' : 'Chuyển sang chế độ sáng'}
-      </span>
-    </button>
-  )
-}
-
 export default function UserPage() {
   const { isAuthenticated, loading } = useAuth()
-  const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState('profile')
@@ -99,9 +74,9 @@ export default function UserPage() {
     fetchProfile()
   }, [isAuthenticated, loading, activeTab])
 
-  // load bookings
+  // load bookings for stats + bookings tab
   useEffect(() => {
-    if (!isAuthenticated || loading || activeTab !== 'bookings') return
+    if (!isAuthenticated || loading) return
 
     const fetchBookings = async () => {
       setBookingsLoading(true)
@@ -111,9 +86,15 @@ export default function UserPage() {
       try {
         const data = await getMyBookings()
         const all = Array.isArray(data) ? data : []
-        setBookings(all)
-        if (all.length > 0) {
-          setSelectedBookingId(all[0].booking_id)
+        const sorted = [...all].sort((a, b) => {
+          const aTime = new Date(a.created_at || 0).getTime()
+          const bTime = new Date(b.created_at || 0).getTime()
+          if (aTime !== bTime) return bTime - aTime
+          return Number(b.booking_id || 0) - Number(a.booking_id || 0)
+        })
+        setBookings(sorted)
+        if (sorted.length > 0) {
+          setSelectedBookingId(sorted[0].booking_id)
         }
       } catch (err) {
         console.error(err)
@@ -126,7 +107,7 @@ export default function UserPage() {
     }
 
     fetchBookings()
-  }, [isAuthenticated, loading, activeTab])
+  }, [isAuthenticated, loading])
 
   const selectedBooking = useMemo(
     () => bookings.find((b) => b.booking_id === selectedBookingId) || null,
@@ -186,7 +167,7 @@ export default function UserPage() {
 
   const canCancelBooking = (booking) => {
     if (!booking) return false
-    if (booking.status !== 'pending' && booking.status !== 'confirmed') {
+    if (booking.status !== 'pending') {
       return false
     }
     const now = new Date()
@@ -311,7 +292,14 @@ export default function UserPage() {
       setBookingActionMessage(res.message || 'Hủy đặt phòng thành công.')
       setBookings((prev) =>
         prev.map((b) =>
-          b.booking_id === booking.booking_id ? res.booking : b
+          b.booking_id === booking.booking_id
+            ? {
+                ...b,
+                ...(res.booking || {}),
+                Room: (res.booking && res.booking.Room) || b.Room,
+                Payment: (res.booking && res.booking.Payment) || b.Payment,
+              }
+            : b
         )
       )
     } catch (err) {
@@ -350,8 +338,6 @@ export default function UserPage() {
                 Quản lý thông tin cá nhân và các đặt phòng đã thực hiện.
               </p>
             </div>
-
-            <ThemeToggleButton theme={theme} toggleTheme={toggleTheme} />
           </div>
 
           {/* tabs */}
@@ -532,7 +518,7 @@ export default function UserPage() {
                             <div className="flex justify-between items-center mb-1">
                               <p className="font-medium text-slate-900">
                                 {b.Room?.name ||
-                                  `Phòng #${b.Room?.room_number || 'N/A'}`}
+                                  `Phòng ${b.Room?.room_number || 'N/A'}`}
                               </p>
                               <span
                                 className={
@@ -580,10 +566,18 @@ export default function UserPage() {
                         <span className="text-slate-600">Phòng</span>
                         <span className="font-medium">
                           {selectedBooking.Room?.name ||
-                            `Phòng #${
+                            `Phòng ${
                               selectedBooking.Room?.room_number || 'N/A'
                             }`}
                         </span>
+                      </p>
+                      <p className="flex justify-between">
+                        <span className="text-slate-600">Số người</span>
+                        <span>{selectedBooking.guests || 'N/A'}</span>
+                      </p>
+                      <p className="flex justify-between">
+                        <span className="text-slate-600">Số đêm</span>
+                        <span>{calcNights(selectedBooking)}</span>
                       </p>
                       <p className="flex justify-between">
                         <span className="text-slate-600">Check-in</span>
@@ -592,10 +586,6 @@ export default function UserPage() {
                       <p className="flex justify-between">
                         <span className="text-slate-600">Check-out</span>
                         <span>{formatDate(selectedBooking.check_out)}</span>
-                      </p>
-                      <p className="flex justify-between">
-                        <span className="text-slate-600">Số đêm</span>
-                        <span>{calcNights(selectedBooking)}</span>
                       </p>
                       <p className="flex justify-between">
                         <span className="text-slate-600">Giá / đêm</span>

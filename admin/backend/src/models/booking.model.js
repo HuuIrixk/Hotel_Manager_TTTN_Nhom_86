@@ -30,9 +30,24 @@ const Booking = sequelize.define("Booking", {
     allowNull: false,
   },
 
+  note: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+
   status: {
     type: DataTypes.ENUM("pending", "confirmed", "cancelled"),
     defaultValue: "pending",
+  },
+
+  created_at: {
+    type: DataTypes.DATE,
+    allowNull: false,
+  },
+
+  updated_at: {
+    type: DataTypes.DATE,
+    allowNull: false,
   },
 
 

@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useTheme } from '@/features/theme/ThemeProvider'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 export default function Header() {
@@ -9,13 +8,12 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
 
-  // Trang hotel detail: /hotels/:id
   const isHotelPage = location.pathname.startsWith('/hotels')
   const isRoomDetailPage = location.pathname.startsWith('/rooms')
   const isBookingPage = location.pathname.startsWith('/booking')
   const isUserPage = location.pathname.startsWith('/user')
-
-
+  const isPaymentPage = location.pathname.startsWith('/payment')
+  const isCartPage = location.pathname.startsWith('/cart')
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 80)
@@ -24,11 +22,17 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const headerClass = isHotelPage || isRoomDetailPage || isBookingPage || isUserPage
-    ? 'bg-black/80 backdrop-blur-md shadow-md py-3'
-    : scrolled
-    ? 'bg-black/70 backdrop-blur-md shadow-md py-3'
-    : 'bg-transparent py-4'
+  const headerClass =
+    isHotelPage ||
+    isRoomDetailPage ||
+    isBookingPage ||
+    isUserPage ||
+    isPaymentPage ||
+    isCartPage
+      ? 'bg-black/80 backdrop-blur-md shadow-md py-3'
+      : scrolled
+      ? 'bg-black/70 backdrop-blur-md shadow-md py-3'
+      : 'bg-black/70 backdrop-blur-md shadow-md py-4'
 
   return (
     <header
@@ -36,7 +40,6 @@ export default function Header() {
       className={`z-[9999] transition-all duration-300 ${headerClass} text-white`}
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between ">
-        {/* Logo */}
         <div className="flex items-center gap-2">
           <span className="text-2xl"></span>
           <Link
@@ -47,7 +50,6 @@ export default function Header() {
           </Link>
         </div>
 
-        {/* Menu ngang (PC) */}
         <nav className="hidden md:flex gap-8 text-sm font-medium">
           <Link to="/" className="hover:text-cyan-400 transition">
             Trang chủ
@@ -67,9 +69,9 @@ export default function Header() {
           <Link to="/contact" className="hover:text-cyan-400 transition">
             Liên hệ
           </Link>
-          <button
-            type="button"
-            className="hover:text-cyan-400 transition inline-flex items-center gap-1 cursor-default"
+          <Link
+            to="/cart"
+            className="hover:text-cyan-400 transition inline-flex items-center gap-1"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -80,10 +82,9 @@ export default function Header() {
               <path d="M2.25 3a.75.75 0 000 1.5h1.386c.17 0 .318.114.361.278l2.558 9.594a2.25 2.25 0 002.173 1.668h7.884a2.25 2.25 0 002.173-1.668l1.302-4.883A1.875 1.875 0 0018.279 7.5H6.598l-.387-1.451A1.875 1.875 0 004.636 4.5H2.25zm6.75 15a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm7.5 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
             </svg>
             Giỏ hàng
-          </button>
+          </Link>
         </nav>
 
-        {/* Khu vực auth (PC) */}
         <div className="hidden md:flex items-center gap-4">
           {user ? (
             <>
@@ -102,10 +103,7 @@ export default function Header() {
             </>
           ) : (
             <>
-              <Link
-                to="/login"
-                className="text-sm hover:text-cyan-400 transition"
-              >
+              <Link to="/login" className="text-sm hover:text-cyan-400 transition">
                 Đăng nhập
               </Link>
               <Link
@@ -118,7 +116,6 @@ export default function Header() {
           )}
         </div>
 
-        {/* Nút menu mobile */}
         <button
           className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/30"
           onClick={() => setMenuOpen((prev) => !prev)}
@@ -149,7 +146,6 @@ export default function Header() {
         </button>
       </div>
 
-      {/* Menu mobile */}
       {menuOpen && (
         <div className="md:hidden bg-black/85 backdrop-blur-lg px-6 pb-6 border-t border-gray-700">
           <ul className="flex flex-col gap-3 text-gray-200 mt-3">
@@ -188,12 +184,13 @@ export default function Header() {
             >
               Liên hệ
             </Link>
-            <button
-              type="button"
-              className="text-left transition cursor-default"
+            <Link
+              to="/cart"
+              className="hover:text-cyan-400 transition"
+              onClick={() => setMenuOpen(false)}
             >
               Giỏ hàng
-            </button>
+            </Link>
             <Link
               to="/about"
               className="hover:text-cyan-400 transition"

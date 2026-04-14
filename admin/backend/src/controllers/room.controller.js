@@ -117,12 +117,12 @@ exports.remove = async (req, res) => {
   }
 };
 
-// Toggle room status (available <-> booked)
+// Toggle room status (available <-> maintenance)
 exports.toggleStatus = async (req, res) => {
   try {
     const room = await Room.findByPk(req.params.id);
     if (!room) return res.status(404).json({ message: 'Room not found' });
-    const newStatus = room.status === 'available' ? 'booked' : 'available';
+    const newStatus = room.status === 'available' ? 'maintenance' : 'available';
     room.status = newStatus;
     await room.save();
     res.json(room);

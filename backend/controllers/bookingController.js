@@ -3,7 +3,7 @@ const Room = require('../models/Room')
 const { Op } = require('sequelize')
 const Payment = require('../models/Payment');
 
-async function validateBookingInput({ room_id, check_in, check_out }) {
+async function validateBookingInput({ room_id, check_in, check_out, guests }) {
   const checkInDate = new Date(check_in)
   const checkOutDate = new Date(check_out)
   const today = new Date()
@@ -26,10 +26,14 @@ async function validateBookingInput({ room_id, check_in, check_out }) {
     return { error: 'Không tìm thấy phòng' }
   }
 
+  if (Number(guests || 1) > Number(room.capacity || 0)) {
+    return { error: 'Số khách vượt quá sức chứa của phòng.' }
+  }
+
   const existingBooking = await Booking.findOne({
     where: {
       room_id,
-      status: { [Op.in]: ['confirmed', 'completed'] },
+      status: { [Op.in]: ['pending', 'confirmed', 'completed'] },
       check_in: { [Op.lt]: checkOutDate },
       check_out: { [Op.gt]: checkInDate },
     },
@@ -61,12 +65,12 @@ exports.validateBooking = async (req, res) => {
 // Đặt phòng
 exports.createBooking = async (req, res) => {
   try {
-    const { room_id, check_in, check_out } = req.body
+    const { room_id, check_in, check_out, note, guests } = req.body
     const user_id = req.user.id // Lấy từ middleware
 
     console.log('>>> createBooking body =', req.body, 'user =', req.user)
 
-    const validation = await validateBookingInput({ room_id, check_in, check_out })
+    const validation = await validateBookingInput({ room_id, check_in, check_out, guests })
     if (validation.error) {
       return res.status(400).json({ error: validation.error })
     }
@@ -79,6 +83,8 @@ exports.createBooking = async (req, res) => {
       room_id,
       check_in: checkInDate,
       check_out: checkOutDate,
+      guests: Number(guests || 1),
+      note: note ? String(note).trim() : null,
       status: 'pending',
     })
 
@@ -105,9 +111,19 @@ exports.createBooking = async (req, res) => {
 }
 
 // (Khách hàng) Xem lịch sử đặt phòng của mình
-// (Khách hàng) Xem lịch sử đặt phòng của mình
 exports.getMyBookings = async (req, res) => {
   try {
+    await Booking.update(
+      { status: 'completed' },
+      {
+        where: {
+          user_id: req.user.id,
+          status: 'confirmed',
+          check_out: { [Op.lt]: new Date() },
+        },
+      }
+    )
+
     const stalePendingPayments = await Payment.findAll({
       where: {
         method: 'vnpay',
@@ -139,7 +155,10 @@ exports.getMyBookings = async (req, res) => {
         { model: Room },
         { model: Payment, required: false }, // có thể chưa thanh toán
       ],
-      order: [['check_in', 'DESC']],
+      order: [
+        ['created_at', 'DESC'],
+        ['booking_id', 'DESC'],
+      ],
     });
 
     return res.json(bookings);
@@ -166,16 +185,30 @@ exports.cancelBooking = async (req, res) => {
       })
     }
 
-    if (booking.status === 'completed' || booking.status === 'cancelled') {
+    if (booking.status !== 'pending') {
       return res.status(400).json({
-        error: 'Không thể hủy đơn đặt phòng ở trạng thái này',
+        error: 'Chỉ có thể hủy đơn ở trạng thái chờ.',
       })
     }
 
     booking.status = 'cancelled'
     await booking.save()
 
-    return res.json({ message: 'Hủy đặt phòng thành công', booking })
+    const bookingWithDetails = await Booking.findOne({
+      where: {
+        booking_id: booking.booking_id,
+        user_id: req.user.id,
+      },
+      include: [
+        { model: Room },
+        { model: Payment, required: false },
+      ],
+    })
+
+    return res.json({
+      message: 'Hủy đặt phòng thành công',
+      booking: bookingWithDetails || booking,
+    })
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'Lỗi server' })

@@ -2,9 +2,9 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up (queryInterface, Sequelize) {
-    await queryInterface.createTable('bookings', {
-      booking_id: {
+  async up(queryInterface, Sequelize) {
+    await queryInterface.createTable('cart_items', {
+      cart_item_id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
         primaryKey: true,
@@ -37,9 +37,26 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: false,
       },
-      status: {
-        type: Sequelize.ENUM('pending', 'confirmed', 'cancelled', 'completed'),
-        defaultValue: 'pending',
+      guests: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 1,
+      },
+      full_name: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      email: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      phone: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      note: {
+        type: Sequelize.TEXT,
+        allowNull: true,
       },
       created_at: {
         type: Sequelize.DATE,
@@ -52,7 +69,7 @@ module.exports = {
     });
   },
 
-  async down (queryInterface, Sequelize) {
-    await queryInterface.dropTable('bookings');
-  }
+  async down(queryInterface, Sequelize) {
+    await queryInterface.dropTable('cart_items');
+  },
 };

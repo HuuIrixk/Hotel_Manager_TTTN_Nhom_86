@@ -9,26 +9,22 @@ import { useAppData } from "../context/AppDataContext";
   - export CSV (demo: create csv string + open in new tab)
 */
 
+const fmtDate = (d) => {
+  if (!d) return "—";
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+};
+
 export default function Reports() {
-  const { getRevenue } = useAppData();
+  const { getRevenue, rooms } = useAppData();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
   const { total, filtered } = getRevenue(from, to);
 
-  function exportCSV() {
-    const header = ["id,customer,roomId,checkIn,checkOut,total,status"];
-    const rows = filtered.map((b) => `${b.id},"${b.customerName}",${b.roomId},${b.checkIn},${b.checkOut},${b.total},${b.status}`);
-    const csv = header.concat(rows).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-  }
-
   return (
     <div>
       <h1 className="page-title">Báo cáo doanh thu</h1>
-      <p className="small">Lọc theo ngày check-in (tính doanh thu cho các booking đã duyệt).</p>
 
       <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
         <div>
@@ -38,12 +34,6 @@ export default function Reports() {
         <div>
           <div className="label">Đến</div>
           <input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
-        </div>
-
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <button className="btn-outline" onClick={() => { setFrom(""); setTo(""); }}>Clear</button>
-          <button className="btn-outline" onClick={() => window.location.reload()}>Refresh</button>
-          <button className="btn-accept" onClick={exportCSV}>Export CSV</button>
         </div>
       </div>
 
@@ -56,14 +46,14 @@ export default function Reports() {
         </div>
 
         <table className="table" style={{ marginTop: 12 }}>
-          <thead><tr><th>Mã</th><th>Khách</th><th>Phòng ID</th><th>Ngày</th><th>Giá</th></tr></thead>
+          <thead><tr><th>Mã</th><th>Khách hàng</th><th>Phòng</th><th>CheckIn - CheckOut</th><th>Giá</th></tr></thead>
           <tbody>
             {filtered.map((b) => (
               <tr key={b.id}>
                 <td>#{b.id}</td>
                 <td>{b.customerName}</td>
-                <td>{b.roomId}</td>
-                <td>{b.checkIn}</td>
+                <td>{rooms.find((r) => r.id === b.roomId)?.name ?? b.roomId}</td>
+                <td>{fmtDate(b.checkIn)} - {fmtDate(b.checkOut)}</td>
                 <td>{b.total.toLocaleString("vi-VN")}₫</td>
               </tr>
             ))}

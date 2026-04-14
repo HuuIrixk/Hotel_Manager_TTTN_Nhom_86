@@ -5,6 +5,17 @@ import api from '@/api/apiClient'
 const AuthContext = createContext(null)
 const STORAGE_KEY = 'user'
 
+function clearAdminLogoutFlag() {
+  if (typeof window === 'undefined') return false
+
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('adminLogout') !== '1') return false
+
+  url.searchParams.delete('adminLogout')
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)
+  return true
+}
+
 export function useAuth() {
   return useContext(AuthContext)
 }
@@ -59,6 +70,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    if (!clearAdminLogoutFlag()) return
+
+    setUser(null)
+    localStorage.removeItem(STORAGE_KEY)
+  }, [])
+
+  useEffect(() => {
     const handler = (e) => {
       if (e.key === STORAGE_KEY) {
         setUser(getInitialUser())
@@ -67,6 +85,39 @@ export function AuthProvider({ children }) {
     window.addEventListener('storage', handler)
     return () => window.removeEventListener('storage', handler)
   }, [])
+
+  useEffect(() => {
+    if (!user?.token || user.phone) return
+
+    let cancelled = false
+
+    const hydrateUserProfile = async () => {
+      try {
+        const res = await api.get('/auth/profile')
+        const profile = res.data
+        if (!profile || cancelled) return
+
+        const mergedUser = {
+          ...user,
+          id: user.id || String(profile.user_id || ''),
+          username: profile.username || user.username,
+          email: profile.email || user.email,
+          phone: profile.phone || '',
+        }
+
+        setUser(mergedUser)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedUser))
+      } catch (err) {
+        console.error('Lỗi tải profile để đồng bộ user:', err)
+      }
+    }
+
+    hydrateUserProfile()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   const login = async (arg1, arg2, arg3) => {
     setLoading(true)
@@ -91,6 +142,7 @@ export function AuthProvider({ children }) {
         id: data.user.id,
         username: data.user.username,
         email: data.user.email,
+        phone: data.user.phone || '',
         role: data.user.role,
       }
 

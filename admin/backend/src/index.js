@@ -34,6 +34,7 @@ app.use("/api/admin/bookings", bookingRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/admin/users", userRoutes);
 app.use("/api/admin/kb", knowledgeRoutes);
+app.use("/api/contact", require("./routes/contact.routes"));
 
 
 

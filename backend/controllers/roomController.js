@@ -84,7 +84,7 @@ exports.searchRooms = async (req, res) => {
 
       const booked = await Booking.findAll({
         where: {
-          status: { [Op.in]: ['confirmed', 'completed'] },
+            status: { [Op.in]: ['pending', 'confirmed', 'completed'] },
           check_in: { [Op.lt]: outDate },
           check_out: { [Op.gt]: inDate },
         },

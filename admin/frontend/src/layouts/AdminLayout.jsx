@@ -8,6 +8,8 @@ import Bookings from "../pages/Bookings";
 import Users from "../pages/Users";
 import Reports from "../pages/Reports";
 import KnowledgeBase from "../pages/KnowledgeBase";
+import Contact from "../pages/contact";
+import ReviewsManagement from "../pages/ReviewsManagement";
 
 export default function AdminLayout() {
   const [page, setPage] = useState("dashboard");
@@ -18,6 +20,8 @@ export default function AdminLayout() {
     bookings: <Bookings />,
     users: <Users />,
     reports: <Reports />,
+    contact: <Contact />,
+    reviews: <ReviewsManagement />,
     knowledge: <KnowledgeBase />,
   };
 

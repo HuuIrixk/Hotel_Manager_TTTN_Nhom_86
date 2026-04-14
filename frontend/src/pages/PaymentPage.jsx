@@ -6,7 +6,7 @@ import 'aos/dist/aos.css'
 
 import Header from '@/layouts/Header'
 import Footer from '@/layouts/Footer'
-import { createVnpayPayment } from '@/api/paymentApi'
+import { createVnpayPayment, directPayment } from '@/api/paymentApi'
 import { createBooking } from '@/api/bookingApi'
 
 export default function PaymentPage() {
@@ -70,12 +70,25 @@ export default function PaymentPage() {
           return
         }
 
-        const res = await createBooking(bookingPayload)
-        const booking = res.booking || res.data?.booking || res
+        const bookingRes = await createBooking(bookingPayload)
+        const booking = bookingRes.booking || bookingRes.data?.booking || bookingRes
+        if (!booking?.booking_id) {
+          setError('Không thể tạo booking cho thanh toán trực tiếp.')
+          return
+        }
+
+        const directRes = await directPayment({
+          booking_id: booking.booking_id,
+          cart_item_id: bookingPayload.cart_item_id,
+        })
         const query = new URLSearchParams({
           bookingId: booking?.booking_id?.toString() || '',
           amount:
-            res.totalAmount != null ? String(res.totalAmount) : String(amount || 0),
+            directRes?.payment?.amount != null
+              ? String(directRes.payment.amount)
+              : bookingRes.totalAmount != null
+              ? String(bookingRes.totalAmount)
+              : String(amount || 0),
           method: 'direct',
           success: 'true',
           message: 'DirectBookingPending',
@@ -97,47 +110,48 @@ export default function PaymentPage() {
 
 
   return (
-    <div className="relative min-h-screen bg-[#050816] text-white">
+    <div className="min-h-screen app-root">
       <Header />
-      <main className="relative z-10 pt-32 pb-24 container mx-auto px-6 flex flex-col items-center">
+      <main className="pt-28 pb-16 bg-slate-50">
+        <div className="max-w-4xl mx-auto px-4 md:px-6 flex flex-col items-center">
         <h1
-          className="text-4xl md:text-5xl font-[Playfair_Display] text-cyan-400 font-bold mb-8 drop-shadow-[0_2px_10px_rgba(34,211,238,0.5)]"
+          className="text-3xl md:text-4xl font-semibold text-slate-900 mb-8"
           data-aos="fade-down"
         >
           Thanh toán đặt phòng
         </h1>
 
         <div
-          className="w-full max-w-2xl bg-white/10 backdrop-blur-lg border border-cyan-400/20 rounded-2xl p-8 shadow-[0_0_25px_rgba(34,211,238,0.15)]"
+          className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
           data-aos="fade-up"
         >
           <div className="mb-8 text-center">
-            <p className="text-gray-300">
+            <p className="text-slate-600">
               Phòng: {room || 'Chưa rõ'}
             </p>
-            <h2 className="text-4xl text-cyan-400 font-semibold mt-2">
+            <h2 className="text-4xl text-slate-900 font-semibold mt-2">
               {formatCurrency(amount)}
             </h2>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-sm text-slate-500 mt-1">
               (Tổng tiền dự kiến – đã tính số đêm, bao gồm thuế & phí dịch vụ)
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div data-aos="fade-right">
-              <h3 className="text-lg font-semibold text-cyan-400 mb-3">
+              <h3 className="text-lg font-semibold text-slate-900 mb-3">
                 Chọn phương thức thanh toán:
               </h3>
               <div className="grid grid-cols-1 gap-3">
                 <label
                   className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-all ${
                     method === 'vnpay'
-                      ? 'bg-cyan-400/10 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)]'
-                      : 'bg-white/5 border-gray-600 hover:border-cyan-400/60'
+                      ? 'bg-cyan-50 border-cyan-400 shadow-[0_0_0_1px_rgba(34,211,238,0.15)]'
+                      : 'bg-white border-slate-300 hover:border-cyan-400/60'
                   }`}
                   onClick={() => setMethod('vnpay')}
                 >
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium text-slate-800">
                     Thanh toán qua VNPay
                   </span>
                 </label>
@@ -145,12 +159,12 @@ export default function PaymentPage() {
                 <label
                   className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-all ${
                     method === 'direct'
-                      ? 'bg-cyan-400/10 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)]'
-                      : 'bg-white/5 border-gray-600 hover:border-cyan-400/60'
+                      ? 'bg-cyan-50 border-cyan-400 shadow-[0_0_0_1px_rgba(34,211,238,0.15)]'
+                      : 'bg-white border-slate-300 hover:border-cyan-400/60'
                   }`}
                   onClick={() => setMethod('direct')}
                 >
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium text-slate-800">
                     Thanh toán trực tiếp tại khách sạn
                   </span>
                 </label>
@@ -159,13 +173,13 @@ export default function PaymentPage() {
 
             {method === 'vnpay' && (
               <div
-                className="bg-black/30 p-5 rounded-lg border border-cyan-400/20"
+                className="bg-slate-50 p-5 rounded-lg border border-slate-200"
                 data-aos="zoom-in"
               >
-                <h4 className="text-cyan-400 font-semibold mb-2">
+                <h4 className="text-cyan-600 font-semibold mb-2">
                   VNPay - Cổng thanh toán trực tuyến
                 </h4>
-                <p className="text-gray-300 text-sm">
+                <p className="text-slate-600 text-sm">
                   Bạn sẽ được chuyển hướng đến cổng VNPay để xác nhận thanh
                   toán.
                 </p>
@@ -174,13 +188,13 @@ export default function PaymentPage() {
 
             {method === 'direct' && (
               <div
-                className="bg-black/30 p-5 rounded-lg border border-cyan-400/20"
+                className="bg-slate-50 p-5 rounded-lg border border-slate-200"
                 data-aos="zoom-in"
               >
-                <h4 className="text-cyan-400 font-semibold mb-2">
+                <h4 className="text-cyan-600 font-semibold mb-2">
                   Thanh toán trực tiếp tại khách sạn
                 </h4>
-                <p className="text-gray-300 text-sm">
+                <p className="text-slate-600 text-sm">
                   Hệ thống sẽ tạo đơn ở trạng thái chờ. Bạn thanh toán tại quầy
                   lễ tân khi đến khách sạn.
                 </p>
@@ -188,7 +202,7 @@ export default function PaymentPage() {
             )}
 
             {error && (
-              <p className="text-sm text-red-400 bg-red-950/40 border border-red-600/40 rounded-lg px-3 py-2">
+              <p className="text-sm text-red-600 border border-red-300 rounded-lg px-3 py-2">
                 {error}
               </p>
             )}
@@ -203,7 +217,7 @@ export default function PaymentPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-10 py-3 bg-gradient-to-r from-cyan-400 to-cyan-500 text-black font-semibold rounded-lg hover:scale-105 hover:shadow-[0_0_25px_rgba(34,211,238,0.6)] transition-all duration-300 disabled:opacity-60"
+                className="px-10 py-3 bg-cyan-500 text-black font-semibold rounded-lg hover:bg-cyan-600 transition-all duration-300 disabled:opacity-60"
               >
                 {loading
                   ? 'Đang xử lý...'
@@ -213,6 +227,7 @@ export default function PaymentPage() {
               </button>
             </div>
           </form>
+        </div>
         </div>
       </main>
 

@@ -20,6 +20,7 @@ const Room = require('./models/Room')
 const Booking = require('./models/Booking')
 const Review = require('./models/Review')
 const Payment = require('./models/Payment')
+const CartItem = require('./models/CartItem')
 
 // Associations
 User.hasMany(Booking, { foreignKey: 'user_id' })
@@ -40,16 +41,28 @@ Payment.belongsTo(User, { foreignKey: 'user_id' })
 Booking.hasOne(Payment, { foreignKey: 'booking_id' })
 Payment.belongsTo(Booking, { foreignKey: 'booking_id' })
 
+User.hasMany(CartItem, { foreignKey: 'user_id' })
+CartItem.belongsTo(User, { foreignKey: 'user_id' })
+
+Room.hasMany(CartItem, { foreignKey: 'room_id' })
+CartItem.belongsTo(Room, { foreignKey: 'room_id' })
+
 // Routes
 const authRoutes = require('./routes/authRoutes')
 const roomRoutes = require('./routes/roomRoutes')
 const bookingRoutes = require('./routes/bookingRoutes')
 const paymentRoutes = require('./routes/paymentRoutes')
+const reviewRoutes = require('./routes/reviewRoutes')
+const contactRoutes = require('./routes/contactRoutes')
+const cartRoutes = require('./routes/cartRoutes')
 
 app.use('/api/auth', authRoutes)
 app.use('/api/rooms', roomRoutes)
 app.use('/api/bookings', bookingRoutes)
 app.use('/api/payment', paymentRoutes)
+app.use('/api/cart', cartRoutes)
+app.use('/api/reviews', reviewRoutes)
+app.use('/api/contact', contactRoutes)
 
 // Test root
 app.get('/', (req, res) => {

@@ -7,7 +7,9 @@ import Login from "../pages/Login";
   Nếu đã login -> render children (AdminLayout)
 */
 export default function ProtectedRoute({ children }) {
-  const { currentUser } = useAuth();
+  const { currentUser, isReady } = useAuth();
+
+  if (!isReady) return null;
 
   if (!currentUser) return <Login />;
 

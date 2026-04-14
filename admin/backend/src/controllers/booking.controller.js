@@ -31,6 +31,16 @@ exports.getAll = async (req, res) => {
       await booking.destroy();
     }
 
+    await Booking.update(
+      { status: "completed" },
+      {
+        where: {
+          status: "confirmed",
+          check_out: { [Op.lt]: new Date() },
+        },
+      }
+    );
+
     const bookings = await Booking.findAll({
       include: [
         { model: User, required: false },
@@ -78,11 +88,12 @@ exports.confirmBooking = async (req, res) => {
     const booking = await Booking.findByPk(id);
     if (!booking) return res.status(404).json({ message: "Không tìm thấy đơn" });
 
-    // Kiểm tra xung đột lịch
+    // Kiểm tra xung đột lịch (chỉ block nếu đã có booking confirmed khác)
     const conflict = await Booking.findOne({
       where: {
+        booking_id: { [Op.ne]: id },
         room_id: booking.room_id,
-        status: { [Op.ne]: "cancelled" },
+        status: "confirmed",
         check_in: { [Op.lt]: booking.check_out },
         check_out: { [Op.gt]: booking.check_in },
       },

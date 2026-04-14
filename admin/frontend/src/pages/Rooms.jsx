@@ -551,18 +551,23 @@ export default function Rooms() {
                   <AmenitiesPreview amenities={r.amenities} />
                 </td>
                 <td>
+                  {(() => {
+                    const normalizedStatus = r.status === "occupied" ? "booked" : r.status;
+                    return (
                   <span style={{
                     fontWeight: 700,
-                    color: r.status === "available" ? "#10b981" : (r.status === "booked" ? "#facc15" : "#ef4444")
+                    color: normalizedStatus === "available" ? "#10b981" : (normalizedStatus === "booked" ? "#facc15" : "#ef4444")
                   }}>
-                    {r.status === "booked"
+                    {normalizedStatus === "booked"
                       ? "Booked"
-                      : r.status === "available"
+                      : normalizedStatus === "available"
                       ? "Available"
-                      : r.status === "maintenance"
+                      : normalizedStatus === "maintenance"
                       ? "Maintenance"
-                      : r.status}
+                      : normalizedStatus}
                   </span>
+                    );
+                  })()}
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: 8 }}>

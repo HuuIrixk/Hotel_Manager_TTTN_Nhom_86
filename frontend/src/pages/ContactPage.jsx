@@ -3,7 +3,7 @@ import AOS from 'aos'
 import 'aos/dist/aos.css'
 import Header from '@/layouts/Header'
 import Footer from '@/layouts/Footer'
-
+import api from '@/api/apiClient'
 
 import { PhoneIcon } from "@heroicons/react/outline"
 import { MailIcon } from "@heroicons/react/outline"
@@ -12,17 +12,26 @@ import { LocationMarkerIcon } from "@heroicons/react/outline"
 export default function Contact() {
   const [form, setForm] = useState({ name: '', email: '', message: '' })
   const [success, setSuccess] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     AOS.init({ duration: 800, once: true })
   }, [])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.name || !form.email || !form.message)
       return alert('Vui lòng điền đầy đủ thông tin liên hệ!')
-    setSuccess(true)
-    setForm({ name: '', email: '', message: '' })
+    setSubmitting(true)
+    try {
+      await api.post('/contact', { name: form.name, email: form.email, message: form.message })
+      setSuccess(true)
+      setForm({ name: '', email: '', message: '' })
+    } catch (err) {
+      alert('Gửi tin nhắn thất bại. Vui lòng thử lại sau.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   useEffect(() => {
@@ -149,9 +158,10 @@ export default function Contact() {
             <div className="text-center pt-4">
               <button
                 type="submit"
-                className="px-10 py-3 bg-gradient-to-r from-cyan-400 to-cyan-500 text-black font-semibold rounded-lg hover:scale-105 hover:shadow-[0_0_25px_rgba(34,211,238,0.6)] transition-all duration-300"
+                disabled={submitting}
+                className="px-10 py-3 bg-gradient-to-r from-cyan-400 to-cyan-500 text-black font-semibold rounded-lg hover:scale-105 hover:shadow-[0_0_25px_rgba(34,211,238,0.6)] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Gửi tin nhắn
+                {submitting ? 'Đang gửi...' : 'Gửi tin nhắn'}
               </button>
             </div>
           </form>

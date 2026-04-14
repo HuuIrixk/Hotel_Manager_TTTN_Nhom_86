@@ -4,10 +4,11 @@ import { AuthProvider } from '@/features/auth/AuthProvider'
 import { ThemeProvider } from '@/features/theme/ThemeProvider'
 
 import HomePage from '@/pages/HomePage'
-import RoomDetailPage from '@/pages/rooms/RoomDetailPage'
+import RoomDetailPage from '@/pages/RoomDetailPage'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import SearchPage from '@/pages/SearchPage'
+import CartPage from '@/pages/CartPage'
 import PaymentPage from '@/pages/PaymentPage'
 import ServicesPage from '@/pages/ServicesPage'
 import ReviewsPage from '@/pages/ReviewsPage'
@@ -41,6 +42,7 @@ function AppRoutes() {
 
         <Route path="/about" element={<AboutPage />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/cart" element={<CartPage />} />
         <Route path="/payment" element={<PaymentPage />} />
         <Route path="/booking-result" element={<BookingResultPage />} />
         <Route path="/user" element={<UserPage />} />

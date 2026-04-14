@@ -1,9 +1,13 @@
 const Review = require("../models/review.model");
+const User = require("../models/user.model");
+
+Review.belongsTo(User, { foreignKey: "user_id", as: "user" });
 
 // Lấy danh sách tất cả review
 exports.getAll = async (req, res) => {
   try {
     const list = await Review.findAll({
+      include: [{ model: User, as: "user", attributes: ["username"] }],
       order: [["created_at", "DESC"]],
     });
     res.json(list);

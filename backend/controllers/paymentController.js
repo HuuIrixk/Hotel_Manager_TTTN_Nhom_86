@@ -3,6 +3,7 @@ const crypto = require('crypto')
 const qs = require('qs')
 const { Op } = require('sequelize')
 const Booking = require('../models/Booking')
+const CartItem = require('../models/CartItem')
 const Payment = require('../models/Payment')
 const Room = require('../models/Room')
 
@@ -73,7 +74,7 @@ async function validateBookingDraft({ room_id, check_in, check_out }) {
   const existingBooking = await Booking.findOne({
     where: {
       room_id,
-      status: { [Op.in]: ['confirmed', 'completed'] },
+      status: { [Op.in]: ['pending', 'confirmed', 'completed'] },
       check_in: { [Op.lt]: checkOutDate },
       check_out: { [Op.gt]: checkInDate },
     },
@@ -133,6 +134,10 @@ async function finalizeDraftPayment(draftRef, responseCode) {
           room_id: draft.bookingPayload.room_id,
           check_in: validation.checkInDate,
           check_out: validation.checkOutDate,
+          guests: Number(draft.bookingPayload.guests || 1),
+          note: draft.bookingPayload.note
+            ? String(draft.bookingPayload.note).trim()
+            : null,
           status: 'confirmed',
         },
         { transaction }
@@ -149,10 +154,25 @@ async function finalizeDraftPayment(draftRef, responseCode) {
         { transaction }
       )
 
-      await booking.update(
-        { payment_id: payment.payment_id },
-        { transaction }
-      )
+      if (draft.bookingPayload.cart_item_id) {
+        await CartItem.destroy({
+          where: {
+            cart_item_id: draft.bookingPayload.cart_item_id,
+            user_id: draft.user_id,
+          },
+          transaction,
+        })
+      } else {
+        await CartItem.destroy({
+          where: {
+            user_id: draft.user_id,
+            room_id: draft.bookingPayload.room_id,
+            check_in: validation.checkInDate,
+            check_out: validation.checkOutDate,
+          },
+          transaction,
+        })
+      }
 
       await transaction.commit()
 
@@ -180,7 +200,7 @@ async function finalizeDraftPayment(draftRef, responseCode) {
 // 1. TẠO URL THANH TOÁN VNPay – TÍNH TỔNG TIỀN THEO SỐ ĐÊM
 exports.createPaymentUrl = async (req, res) => {
   try {
-    const { booking_id, room_id, check_in, check_out, guests, full_name, email, phone, note } = req.body
+    const { booking_id, room_id, check_in, check_out, guests, full_name, email, phone, note, cart_item_id } = req.body
     const user_id = req.user.id
 
     console.log('>>> createPaymentUrl body =', req.body, 'user =', req.user)
@@ -205,6 +225,7 @@ exports.createPaymentUrl = async (req, res) => {
           email,
           phone,
           note,
+          cart_item_id,
         },
         totalAmount: validation.totalAmount,
         createdAt: Date.now(),
@@ -389,10 +410,7 @@ exports.vnpayReturn = async (req, res) => {
           await payment.update({ status: 'success' })
 
           const booking = await Booking.findByPk(payment.booking_id)
-          await booking.update({
-            status: 'confirmed',
-            payment_id: payment.payment_id,
-          })
+          await booking.update({ status: 'confirmed' })
 
           redirectUrl += '&success=true&message=PaymentSuccess'
         } else {
@@ -471,10 +489,7 @@ exports.vnpayIpn = async (req, res) => {
       if (responseCode === '00') {
         await payment.update({ status: 'success' })
         const booking = await Booking.findByPk(payment.booking_id)
-        await booking.update({
-          status: 'confirmed',
-          payment_id: payment.payment_id,
-        })
+        await booking.update({ status: 'confirmed' })
       } else {
         // IPN failure – delete booking and payment entirely
         const booking = await Booking.findByPk(payment.booking_id)
@@ -484,7 +499,6 @@ exports.vnpayIpn = async (req, res) => {
 
       return res.status(200).json({ RspCode: '00', Message: 'Success' })
     } catch (err) {
-      console.error(err)
       return res
         .status(200)
         .json({ RspCode: '97', Message: 'Server Error' })
@@ -497,10 +511,10 @@ exports.vnpayIpn = async (req, res) => {
 }
 
 // 4. Thanh toán trực tiếp
-// 4. Thanh toán trực tiếp tại khách sạn
+
 exports.directPayment = async (req, res) => {
   try {
-    const { booking_id } = req.body;
+    const { booking_id, cart_item_id } = req.body;
 
     if (!booking_id) {
       return res.status(400).json({ error: 'Thiếu booking_id' });
@@ -542,9 +556,26 @@ exports.directPayment = async (req, res) => {
     });
 
     // 4. Giữ booking ở trạng thái pending để khách thanh toán tại khách sạn
-    booking.payment_id = payment.payment_id;
     booking.status = 'pending';
     await booking.save();
+
+    if (cart_item_id) {
+      await CartItem.destroy({
+        where: {
+          cart_item_id,
+          user_id: req.user.id,
+        },
+      });
+    } else {
+      await CartItem.destroy({
+        where: {
+          user_id: req.user.id,
+          room_id: booking.room_id,
+          check_in: booking.check_in,
+          check_out: booking.check_out,
+        },
+      });
+    }
 
     return res.json({
       message:

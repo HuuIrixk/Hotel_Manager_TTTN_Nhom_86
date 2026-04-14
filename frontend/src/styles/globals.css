@@ -59,8 +59,15 @@ body {
 
 /* wrapper chung cho các page React */
 .app-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background-color: var(--bg-page);
   color: var(--text-main);
+}
+
+.app-root > main {
+  flex: 1;
 }
 
 /* card cơ bản */

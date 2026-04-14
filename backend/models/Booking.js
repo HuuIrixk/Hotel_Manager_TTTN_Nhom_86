@@ -31,13 +31,18 @@ const Booking = sequelize.define('Booking', {
     type: DataTypes.DATE,
     allowNull: false,
   },
+  guests: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1,
+  },
+  note: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   status: {
     type: DataTypes.ENUM('pending', 'confirmed', 'cancelled', 'completed'),
     defaultValue: 'pending',
-  },
-  payment_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true, // Có thể null nếu chưa thanh toán
   }
 }, {
   tableName: 'bookings',

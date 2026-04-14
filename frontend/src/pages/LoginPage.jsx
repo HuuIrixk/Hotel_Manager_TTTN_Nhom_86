@@ -4,6 +4,33 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import '@/styles/auth.css'
 
+function getAdminBaseUrl() {
+  const configuredBaseUrl = import.meta.env.VITE_ADMIN_BASE_URL
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, '')
+  }
+
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:3001`
+  }
+
+  return 'http://localhost:3001'
+}
+
+function encodeAdminSession(user) {
+  return btoa(
+    encodeURIComponent(
+      JSON.stringify({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        token: user.token,
+      })
+    )
+  )
+}
+
 export default function LoginPage() {
   const { login, loading } = useAuth()
   const navigate = useNavigate()
@@ -24,7 +51,14 @@ export default function LoginPage() {
 
     try {
       setError('')
-      await login(email, password, rememberMe) // vẫn giữ kiểu cũ
+      const authUser = await login(email, password, rememberMe)
+
+      if (authUser?.role === 'admin') {
+        const adminSession = encodeAdminSession(authUser)
+        window.location.assign(`${getAdminBaseUrl()}/#admin-auth=${adminSession}`)
+        return
+      }
+
       navigate('/')
     } catch (err) {
       console.error(err)

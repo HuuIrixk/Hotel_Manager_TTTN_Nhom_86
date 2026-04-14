@@ -25,7 +25,7 @@ export function AppDataProvider({ children }) {
         id: r.room_id,
         name: r.room_number,
         price: Number(r.price),
-        status: r.status,
+        status: r.status === "occupied" ? "booked" : r.status,
         type: r.type,
         capacity: r.capacity,
         description: r.description || "",
@@ -35,7 +35,20 @@ export function AppDataProvider({ children }) {
       setRooms(mappedRooms);
 
       // Map Bookings
-      const mappedBookings = (Array.isArray(bData) ? bData : []).map((b) => {
+      const rawBookings = Array.isArray(bData) ? bData : [];
+      const latestBookings = new Map();
+
+      rawBookings.forEach((b) => {
+        const current = latestBookings.get(b.booking_id);
+        const currentPaymentId = Number(current?.Payment?.payment_id || 0);
+        const nextPaymentId = Number(b?.Payment?.payment_id || 0);
+
+        if (!current || nextPaymentId >= currentPaymentId) {
+          latestBookings.set(b.booking_id, b);
+        }
+      });
+
+      const mappedBookings = Array.from(latestBookings.values()).map((b) => {
         const checkIn = b.check_in ? b.check_in.split("T")[0] : "";
         const checkOut = b.check_out ? b.check_out.split("T")[0] : "";
 
@@ -65,8 +78,10 @@ export function AppDataProvider({ children }) {
           customerName: b.User ? b.User.username : "Unknown",
           customerPhone: b.User ? b.User.phone : "",
           roomId: b.room_id,
+          createdAt: b.created_at || null,
           checkIn,
           checkOut,
+          note: b.note || "",
           status: b.status === "approved" ? "confirmed" : b.status,
           total,
           Payment: b.Payment,
@@ -81,6 +96,7 @@ export function AppDataProvider({ children }) {
         displayName: u.username, // Use username as display name for now
         role: u.role,
         email: u.email,
+        phone: u.phone || "",
         active: true // Default to active as DB doesn't have active field yet
       }));
       setUsers(mappedUsers);
@@ -126,22 +142,37 @@ export function AppDataProvider({ children }) {
   }
 
   // Approve booking
-  function approveBooking(id) {
+  async function approveBooking(id) {
+    const previous = bookings;
     setBookings((old) =>
       old.map((b) => (b.id === id ? { ...b, status: "confirmed" } : b))
     );
-    // Logic update room status nên được xử lý ở backend khi confirm booking
-    const b = bookings.find((x) => x.id === id);
-    if (b) updateRoom(b.roomId, { status: "occupied" });
+    try {
+      await put(`/admin/bookings/${id}/confirm`, {});
+      const b = bookings.find((x) => x.id === id);
+      if (b) updateRoom(b.roomId, { status: "booked" });
+    } catch (err) {
+      console.error("approveBooking failed", err);
+      setBookings(previous);
+      alert("Duyệt đơn thất bại: " + (err?.response?.data?.error || err.message));
+    }
   }
 
   // Reject booking
-  function rejectBooking(id) {
+  async function rejectBooking(id) {
+    const previous = bookings;
     setBookings((old) =>
-      old.map((b) => (b.id === id ? { ...b, status: "rejected" } : b))
+      old.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b))
     );
-    const b = bookings.find((x) => x.id === id);
-    if (b) updateRoom(b.roomId, { status: "available" });
+    try {
+      await put(`/admin/bookings/${id}/cancel`, {});
+      const b = bookings.find((x) => x.id === id);
+      if (b) updateRoom(b.roomId, { status: "available" });
+    } catch (err) {
+      console.error("rejectBooking failed", err);
+      setBookings(previous);
+      alert("Hủy đơn thất bại: " + (err?.response?.data?.error || err.message));
+    }
   }
 
   // Tạo booking (mock)
@@ -158,17 +189,10 @@ export function AppDataProvider({ children }) {
     const t = to ? new Date(to) : null;
 
     const filtered = bookings.filter((b) => {
-      // Backend trả về check_in, check_out (snake_case) hoặc checkIn (camelCase) tùy model
-      // Cần kiểm tra kỹ response thực tế. Tạm thời assume backend trả về đúng format hoặc map lại.
-      // Dựa vào code cũ: checkIn
       const dateStr = b.checkIn || b.check_in;
       if (!dateStr) return false;
 
       if (!(b.status === "confirmed" || b.status === "completed")) {
-        return false;
-      }
-
-      if (b.Payment && b.Payment.status !== "success") {
         return false;
       }
 

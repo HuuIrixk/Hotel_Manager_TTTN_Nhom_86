@@ -7,6 +7,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 // ĐỔI: dùng API lấy phòng theo số phòng
 import { getRoomByNumber } from '@/api/roomApi'
 import { validateBooking } from '@/api/bookingApi'
+import { addToCart } from '@/api/cartApi'
 
 function normalizeQueryDate(value) {
   if (!value) return ''
@@ -42,7 +43,6 @@ export default function BookingPage() {
   const searchParams = new URLSearchParams(location.search)
   // THỰC CHẤT đây là room_number do AI gửi
   const roomId = searchParams.get('room')
-  const amountFromQuery = searchParams.get('amount')
 
   const rawCheckIn = searchParams.get('checkIn')
   const rawCheckOut = searchParams.get('checkOut')
@@ -123,6 +123,8 @@ export default function BookingPage() {
     return nights * (room.price || 0)
   }, [room, nights])
 
+  const roomCapacity = Number(room?.capacity || 0)
+
   const roomImageSrc = useMemo(() => {
     const rawImage = room?.image_url || room?.image
     if (!rawImage) return '/images/superior-room.jpg'
@@ -150,6 +152,8 @@ export default function BookingPage() {
     setError('')
     setMessage('')
 
+    const action = e.nativeEvent?.submitter?.value || 'pay'
+
     // cần có room + room_id thật trong DB
     if (!room || !room.room_id || roomError) {
       setError(
@@ -160,6 +164,16 @@ export default function BookingPage() {
 
     if (!checkIn || !checkOut) {
       setError('Vui lòng chọn ngày nhận phòng và trả phòng.')
+      return
+    }
+
+    if (!fullName.trim() || !email.trim() || !phone.trim()) {
+      setError('Vui lòng điền đầy đủ họ tên, email và số điện thoại.')
+      return
+    }
+
+    if (roomCapacity > 0 && Number(guests) > roomCapacity) {
+      setError('Số khách vượt quá sức chứa của phòng.')
       return
     }
 
@@ -178,13 +192,19 @@ export default function BookingPage() {
       setSubmitting(true)
       await validateBooking(bookingPayload)
 
-      navigate('/payment', {
-        state: {
-          bookingPayload,
-          amount: estimatedTotal,
-          roomName: room.name || `Phòng #${room.room_number || room.room_id}`,
-        },
-      })
+      if (action === 'cart') {
+        await addToCart(bookingPayload)
+        setMessage('Đã thêm phòng vào giỏ hàng thành công.')
+        navigate('/cart')
+      } else {
+        navigate('/payment', {
+          state: {
+            bookingPayload,
+            amount: estimatedTotal,
+            roomName: room.name || `Phòng #${room.room_number || room.room_id}`,
+          },
+        })
+      }
     } catch (err) {
       console.error(err)
       setError(
@@ -268,17 +288,17 @@ export default function BookingPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Số khách
+                        Số người
                       </label>
                       <select
                         value={guests}
                         onChange={(e) => setGuests(e.target.value)}
                         className="w-full text-black border border-slate-300 rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 bg-white"
                       >
-                        <option value="1">1 khách</option>
-                        <option value="2">2 khách</option>
-                        <option value="3">3 khách</option>
-                        <option value="4">4 khách</option>
+                        <option value="1">1 người</option>
+                        <option value="2">2 người</option>
+                        <option value="3">3 người</option>
+                        <option value="4">4 người</option>
                       </select>
                     </div>
                   </div>
@@ -329,13 +349,25 @@ export default function BookingPage() {
                   )}
 
                   <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="w-full md:w-auto px-6 py-2.5 rounded-md bg-cyan-500 hover:bg-cyan-400 text-sm font-semibold text-black transition disabled:opacity-60"
-                    >
-                      {submitting ? 'Đang kiểm tra phòng...' : 'Tiếp tục tới thanh toán'}
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="submit"
+                        value="cart"
+                        disabled={submitting}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-md border border-cyan-500 text-cyan-600 hover:bg-cyan-50 text-sm font-semibold transition disabled:opacity-60"
+                      >
+                        {submitting ? 'Đang xử lý...' : 'Thêm vào giỏ hàng'}
+                      </button>
+
+                      <button
+                        type="submit"
+                        value="pay"
+                        disabled={submitting}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-md bg-cyan-500 hover:bg-cyan-400 text-sm font-semibold text-black transition disabled:opacity-60"
+                      >
+                        {submitting ? 'Đang xử lý...' : 'Thanh toán ngay'}
+                      </button>
+                    </div>
                   </div>
                 </form>
               </section>
@@ -375,6 +407,9 @@ export default function BookingPage() {
                           </p>
                           <p className="text-xs text-slate-500">
                             Loại: {room.type || 'Standard'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Sức chứa: {roomCapacity || '?'} người
                           </p>
                         </div>
                       </div>
@@ -422,17 +457,6 @@ export default function BookingPage() {
                   ) : null}
                 </div>
 
-                {amountFromQuery && (
-                  <div className="rounded-xl bg-slate-100 px-4 py-3 text-xs text-slate-600">
-                    <p>
-                      Số tiền nhận từ trang trước:{' '}
-                      <span className="font-semibold">
-                        {formatCurrency(amountFromQuery)}
-                      </span>
-                    </p>
-                    <p>Backend vẫn sẽ tính lại để đảm bảo chính xác.</p>
-                  </div>
-                )}
               </aside>
             </div>
           </div>

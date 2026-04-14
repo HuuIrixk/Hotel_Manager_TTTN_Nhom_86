@@ -18,16 +18,14 @@ export default function Users() {
     const lowered = search.toLowerCase();
     return (
       u.username.toLowerCase().includes(lowered) ||
-      (u.email && u.email.toLowerCase().includes(lowered))
+      (u.email && u.email.toLowerCase().includes(lowered)) ||
+      (u.phone && u.phone.toLowerCase().includes(lowered))
     );
   });
 
   return (
     <div>
       <h1 className="page-title">Người dùng & phân quyền</h1>
-      <p className="small">
-        Quản lý account hệ thống (demo local). Thay đổi role ảnh hưởng quyền trên UI.
-      </p>
       <div style={{ marginBottom: 12 }}>
         <input
           className="input"
@@ -40,9 +38,10 @@ export default function Users() {
         <table className="table">
           <thead>
             <tr>
-              <th>#</th>
+              <th>Mã</th>
               <th>Username</th>
               <th>Email</th>
+              <th>Số điện thoại</th>
               <th>Display</th>
               <th>Role</th>
               <th>Active</th>
@@ -55,6 +54,7 @@ export default function Users() {
                 <td>{u.id}</td>
                 <td>{u.username}</td>
                 <td>{u.email}</td>
+                <td>{u.phone || "-"}</td>
                 <td>{u.displayName}</td>
                 <td>
                   <select
